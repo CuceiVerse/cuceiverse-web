@@ -1,35 +1,45 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "grid",
+        placeItems: "center",
+        background: "#0b0f19",
+        color: "white",
+        fontFamily:
+          "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, Apple Color Emoji, Segoe UI Emoji",
+        padding: "24px",
+      }}
+    >
+      <section style={{ textAlign: "center", maxWidth: 720 }}>
+        <h1 style={{ margin: 0, fontSize: 40, letterSpacing: -0.5 }}>
+          CUCEIverse
+        </h1>
+        <p style={{ marginTop: 12, fontSize: 16, opacity: 0.85, lineHeight: 1.6 }}>
+          En construcción. MVP de infraestructura: Web, API, Microservicio IA y Base de Datos.
         </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
 
-export default App
+        <div
+          style={{
+            marginTop: 24,
+            display: "inline-flex",
+            gap: 10,
+            padding: "10px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.04)",
+            fontSize: 14,
+            opacity: 0.9,
+          }}
+        >
+          <span>Web: OK</span>
+          <span style={{ opacity: 0.4 }}>|</span>
+          <span>API: /health</span>
+          <span style={{ opacity: 0.4 }}>|</span>
+          <span>Avatar: /health</span>
+        </div>
+      </section>
+    </main>
+  );
+}
