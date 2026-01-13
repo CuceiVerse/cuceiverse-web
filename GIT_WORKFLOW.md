@@ -18,7 +18,7 @@ Estas ramas existen siempre y tienen roles específicos protegidos.
 * **`main`**: Rama de **producción**. El código aquí es sagrado y desplegable. Solo recibe cambios mediante Pull Request (Release o Hotfix).
 * **`develop`**: Rama de **integración**. Aquí aterriza todo el trabajo diario (features, fixes, refactors, etc.).
 
-> **🚨 Regla operativa:** No se trabaja directo en `main` ni en `develop`. Todo cambio entra estrictamente por Pull Request (PR).
+> **Regla operativa:** No se trabaja directo en `main` ni en `develop`. Todo cambio entra estrictamente por Pull Request (PR).
 
 ---
 
