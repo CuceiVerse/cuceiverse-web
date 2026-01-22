@@ -26,16 +26,6 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: package-lock.json
-      
-      - name: Cache npm (only if lockfile exists)
-        if: hashFiles('package-lock.json') != ''
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
 
       - name: Install
         run: npm ci
