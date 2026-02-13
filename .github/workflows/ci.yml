@@ -27,6 +27,15 @@ jobs:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: package-lock.json
+          
+      - name: "Guard: prevent committed node_modules"
+        run: |
+          if git ls-files | grep -E '^node_modules/'; then
+            echo "ERROR: node_modules is tracked. Remove it from git index and rely on .gitignore."
+            exit 1
+          fi
+          echo "OK: node_modules not tracked"
+
 
       - name: Install
         run: npm ci
