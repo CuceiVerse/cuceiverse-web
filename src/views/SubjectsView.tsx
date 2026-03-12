@@ -1,0 +1,281 @@
+import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { Search, Book, Clock, UserSquare, MapPin, ChevronLeft, ChevronRight, Hash, Building2, Calendar, X, Laptop, Users, MonitorSmartphone } from 'lucide-react';
+import mockData from '../data/mockSubjects.json';
+import './SubjectsView.css';
+
+interface Subject {
+  NRC: number;
+  Clave: string;
+  Materia: string;
+  CR: number;
+  Hora: string | number;
+  Dias: string;
+  Edificio: string | number;
+  Aula: string | number;
+  Profesor: string;
+}
+
+const ITEMS_PER_PAGE = 30;
+
+// Normalizes a string: lowercase + remove diacritics (accents)
+const normalize = (str: string) =>
+  str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const getModalidad = (edificio: string | number | null | undefined) => {
+  const ed = String(edificio || '').toUpperCase();
+  
+  if (!ed || ed === 'N/A' || ed === 'UNDEFINED') {
+    return { text: 'Por Definir', icon: <Users size={14} />, class: 'mod-unknown' };
+  }
+
+  // Si tiene DESV y ademas tiene otro edificio diferente concatenado (mas de 6 chars usualmente)
+  // Nota: DESV1 tiene 5 letras. Si es "DESV1, ALFA" tiene mucho mas.
+  if (ed.includes('DESV')) {
+    if (ed.length > 7) {
+      return { text: 'Híbrida', icon: <MonitorSmartphone size={14} />, class: 'mod-hybrid' };
+    }
+    return { text: 'Virtual', icon: <Laptop size={14} />, class: 'mod-virtual' };
+  }
+
+  return { text: 'Presencial', icon: <Users size={14} />, class: 'mod-presencial' };
+};
+
+const formatDays = (diasStr: string | number | null | undefined) => {
+  if (!diasStr) return 'N/A';
+  const str = String(diasStr).toUpperCase();
+  
+  const map: Record<string, string> = {
+    'L': 'Lunes',
+    'M': 'Martes',
+    'I': 'Miércoles',
+    'J': 'Jueves',
+    'V': 'Viernes',
+    'S': 'Sábado'
+  };
+
+  const daysFound = str.split('').filter(char => map[char]);
+  
+  if (daysFound.length === 0) return 'N/A';
+  
+  return daysFound.map(char => map[char]).join(', ');
+};
+
+export const SubjectsView: React.FC = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+
+  const filteredSubjects = useMemo(() => {
+    const q = normalize(searchTerm.trim());
+    if (!q) return mockData as Subject[];
+    
+    return (mockData as Subject[]).filter((subject) => {
+      const modText = normalize(getModalidad(subject.Edificio).text);
+
+      return (
+        normalize(String(subject.Materia || '')).includes(q) ||
+        normalize(String(subject.Clave || '')).includes(q) ||
+        normalize(String(subject.Profesor || '')).includes(q) ||
+        String(subject.NRC || '').includes(q) ||
+        normalize(String(subject.Edificio || '')).includes(q) ||
+        modText.includes(q)
+      );
+    });
+  }, [searchTerm]);
+
+  const totalPages = Math.ceil(filteredSubjects.length / ITEMS_PER_PAGE);
+
+  const currentSubjects = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredSubjects.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredSubjects, currentPage]);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
+  };
+
+  return (
+    <div className="subjects-container animate-fade-in">
+      <div className="subjects-header">
+        <div className="header-title">
+          <div className="icon-wrapper">
+            <Book size={28} />
+          </div>
+          <div>
+            <h1>Oferta Académica</h1>
+            <p>Explorando {mockData.length.toLocaleString()} materias disponibles en CUCEI.</p>
+          </div>
+        </div>
+
+        <div className="search-wrapper glass-panel">
+          <Search size={20} className="search-icon" />
+          <input
+            type="text"
+            placeholder="Buscar por materia, profesor, NRC, virtual, presencial..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+          />
+        </div>
+      </div>
+
+      <div className="subjects-grid">
+        {currentSubjects.length > 0 ? (
+          currentSubjects.map((subject, index) => {
+            const modalidad = getModalidad(subject.Edificio);
+            
+            return (
+              <div key={`${subject.NRC}-${index}`} className="subject-card glass-panel">
+                <div className="card-header">
+                  <span className="subject-nrc">NRC: {subject.NRC}</span>
+                  <div className="header-badges">
+                    <span className={`modality-badge ${modalidad.class}`} title={modalidad.text}>
+                      {modalidad.icon}
+                      <span className="modality-text">{modalidad.text}</span>
+                    </span>
+                    <span className="subject-cr">{subject.CR || 0} CR</span>
+                  </div>
+                </div>
+                
+                <h3 className="subject-title">{subject.Materia || 'Sin Nombre'}</h3>
+                <div className="subject-clave">{subject.Clave || 'S/C'}</div>
+                
+                <div className="subject-details preview-details">
+                  <div className="detail-row">
+                    <UserSquare size={16} className="detail-icon" />
+                    <span className="truncate">{subject.Profesor || 'Sin Profesor Asignado'}</span>
+                  </div>
+                  <div className="detail-row">
+                    <Clock size={16} className="detail-icon" />
+                    <span>{subject.Hora || 'Sin Horario'} | {formatDays(subject.Dias)}</span>
+                  </div>
+                </div>
+                
+                <button 
+                  className="enroll-btn"
+                  onClick={() => setSelectedSubject(subject)}
+                >
+                  Ver Detalles
+                </button>
+              </div>
+            );
+          })
+        ) : (
+          <div className="no-results glass-panel">
+            <Book size={48} className="muted-icon" />
+            <h3>No se encontraron materias</h3>
+            <p>Intenta ajustar tu búsqueda.</p>
+          </div>
+        )}
+      </div>
+
+      {totalPages > 1 && (
+        <div className="pagination-controls">
+          <button 
+            className="pagination-btn glass-panel"
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft size={20} />
+            Anterior
+          </button>
+          
+          <div className="pagination-info glass-panel">
+            Página {currentPage} de {totalPages}
+            <span className="pagination-total">({filteredSubjects.length} resultados)</span>
+          </div>
+
+          <button 
+            className="pagination-btn glass-panel"
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+          >
+            Siguiente
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      )}
+
+      {/* Modal View for Subject Details */}
+      {selectedSubject && createPortal(
+        <div className="modal-overlay animate-fade-in" onClick={() => setSelectedSubject(null)}>
+          <div className="modal-content glass-panel animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setSelectedSubject(null)}>
+              <X size={24} />
+            </button>
+            
+            <div className="modal-header">
+              <span className="subject-nrc">NRC: {selectedSubject.NRC}</span>
+              <div className="header-badges">
+                {(() => {
+                  const mod = getModalidad(selectedSubject.Edificio);
+                  return (
+                    <span className={`modality-badge ${mod.class}`}>
+                      {mod.icon}
+                      <span className="modality-text">{mod.text}</span>
+                    </span>
+                  );
+                })()}
+                <span className="subject-cr">{selectedSubject.CR || 0} Créditos</span>
+              </div>
+            </div>
+            
+            <h2 className="modal-title">{selectedSubject.Materia || 'Sin Nombre'}</h2>
+            
+            <div className="modal-details-grid">
+              <div className="detail-item">
+                <UserSquare size={18} className="detail-icon" />
+                <div>
+                  <span className="detail-label">Profesor</span>
+                  <span className="detail-value">{selectedSubject.Profesor || 'Sin Asignar'}</span>
+                </div>
+              </div>
+              
+              <div className="detail-item">
+                <Clock size={18} className="detail-icon" />
+                <div>
+                  <span className="detail-label">Horario</span>
+                  <span className="detail-value">{selectedSubject.Hora || 'N/A'}</span>
+                </div>
+              </div>
+              
+              <div className="detail-item">
+                <Calendar size={18} className="detail-icon" />
+                <div>
+                  <span className="detail-label">Días</span>
+                  <span className="detail-value">{formatDays(selectedSubject.Dias)}</span>
+                </div>
+              </div>
+
+              <div className="detail-item">
+                <Building2 size={18} className="detail-icon" />
+                <div>
+                  <span className="detail-label">Edificio</span>
+                  <span className="detail-value">{selectedSubject.Edificio || 'No Asignado'}</span>
+                </div>
+              </div>
+
+              <div className="detail-item">
+                <MapPin size={18} className="detail-icon" />
+                <div>
+                  <span className="detail-label">Aula</span>
+                  <span className="detail-value">{selectedSubject.Aula || 'N/A'}</span>
+                </div>
+              </div>
+
+              <div className="detail-item">
+                <Hash size={18} className="detail-icon" />
+                <div>
+                  <span className="detail-label">Clave Institucional</span>
+                  <span className="detail-value">{selectedSubject.Clave}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+};
