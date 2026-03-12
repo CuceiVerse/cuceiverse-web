@@ -1,6 +1,6 @@
 import { Rectangle, Texture } from 'pixi.js';
 
-import { gridToScreen } from '../lib/isometric';
+import { gridCenterToScreen } from '../lib/topDown';
 import type { PoiType, PuntoInteres } from '../types';
 
 type POIMarkerProps = {
@@ -82,29 +82,30 @@ function buildMarkerTexture(type: PoiType, selected: boolean): Texture {
 }
 
 export function POIMarker({ poi, selected, onSelect }: POIMarkerProps) {
-  const screen = gridToScreen({
+  const screen = gridCenterToScreen({
     x: poi.coordenadaXGrid,
     y: poi.coordenadaYGrid,
   });
   const texture = buildMarkerTexture(poi.tipo, selected);
 
   return (
-    <pixiContainer x={screen.x} y={screen.y - 18} zIndex={poi.prioridadVisual + 100}>
+    <pixiContainer x={screen.x} y={screen.y} zIndex={poi.prioridadVisual + 100}>
       <pixiGraphics
         draw={(graphics) => {
           graphics.clear();
           if (!selected) return;
 
           graphics.setFillStyle({ color: 0xffe082, alpha: 0.22 });
-          graphics.ellipse(0, 0, 14, 8);
+          graphics.circle(0, 0, 14);
           graphics.fill();
           graphics.setStrokeStyle({ color: 0xfff6bd, width: 2, alpha: 1 });
-          graphics.ellipse(0, 0, 16, 10);
+          graphics.circle(0, 0, 16);
           graphics.stroke();
         }}
       />
       <pixiSprite
         texture={texture}
+        y={-2}
         anchor={0.5}
         eventMode="static"
         cursor="pointer"
