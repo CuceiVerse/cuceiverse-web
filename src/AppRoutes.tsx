@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
+import { useAuth } from './context/useAuth';
 import { LoginView } from './views/LoginView';
 import { HomeView } from './views/HomeView';
 import { SubjectsView } from './views/SubjectsView';
