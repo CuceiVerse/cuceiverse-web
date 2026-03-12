@@ -1,24 +1,20 @@
-import React, { createContext, useState, useEffect } from 'react';
-import type { ReactNode } from 'react';
+import React, { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 
-// Simplified representation of User/Token for MVP
-export interface AuthContextType {
-  token: string | null;
-  isAuthenticated: boolean;
-  login: (token: string) => void;
-  logout: () => void;
-}
+import { AuthContext } from "./AuthContextStore";
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('cuceiverse_token'));
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
+  const [token, setToken] = useState<string | null>(
+    localStorage.getItem("cuceiverse_token"),
+  );
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem('cuceiverse_token', token);
+      localStorage.setItem("cuceiverse_token", token);
     } else {
-      localStorage.removeItem('cuceiverse_token');
+      localStorage.removeItem("cuceiverse_token");
     }
   }, [token]);
 

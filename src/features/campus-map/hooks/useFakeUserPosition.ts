@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 
-import { buildCampusRoute, interpolatePoint } from '../lib/campus-routing';
-import type { GridPoint } from '../types';
+import { buildCampusRoute, interpolatePoint } from "../lib/campus-routing";
+import type { GridPoint } from "../types";
 
 type UseFakeUserPositionResult = {
   position: GridPoint;
@@ -14,55 +14,56 @@ export function useFakeUserPosition(
   poiEnd: GridPoint | null,
 ): UseFakeUserPositionResult {
   const [position, setPosition] = useState<GridPoint>(poiStart);
-  const [route, setRoute] = useState<GridPoint[]>([poiStart]);
   const [isMoving, setIsMoving] = useState(false);
 
-  useEffect(() => {
+  const route = useMemo(() => {
     if (!poiEnd) {
-      setPosition(poiStart);
-      setRoute([poiStart]);
-      setIsMoving(false);
-      return;
+      return [poiStart];
     }
 
-    const nextRoute = buildCampusRoute(poiStart, poiEnd);
-    setRoute(nextRoute);
+    return buildCampusRoute(poiStart, poiEnd);
+  }, [poiEnd, poiStart]);
 
-    if (nextRoute.length < 2) {
-      setPosition(poiEnd);
-      setIsMoving(false);
+  useEffect(() => {
+    if (!poiEnd || route.length < 2) {
       return;
     }
 
     let segmentIndex = 0;
     let progress = 0;
-    let lastTimestamp = performance.now();
+    let lastTimestamp = 0;
     let frameId = 0;
-    setIsMoving(true);
-    setPosition(nextRoute[0]);
 
     const tick = (timestamp: number) => {
+      if (!lastTimestamp) {
+        lastTimestamp = timestamp;
+        setIsMoving(true);
+        setPosition(route[0]);
+        frameId = requestAnimationFrame(tick);
+        return;
+      }
+
       const deltaSeconds = (timestamp - lastTimestamp) / 1000;
       lastTimestamp = timestamp;
       progress += deltaSeconds * 2.15;
 
-      while (progress >= 1 && segmentIndex < nextRoute.length - 2) {
+      while (progress >= 1 && segmentIndex < route.length - 2) {
         progress -= 1;
         segmentIndex += 1;
       }
 
-      const current = nextRoute[segmentIndex];
-      const next = nextRoute[Math.min(segmentIndex + 1, nextRoute.length - 1)];
+      const current = route[segmentIndex];
+      const next = route[Math.min(segmentIndex + 1, route.length - 1)];
 
-      if (!next || segmentIndex >= nextRoute.length - 1) {
-        setPosition(nextRoute[nextRoute.length - 1]);
+      if (!next || segmentIndex >= route.length - 1) {
+        setPosition(route[route.length - 1]);
         setIsMoving(false);
         return;
       }
 
-      const done = segmentIndex >= nextRoute.length - 2 && progress >= 1;
+      const done = segmentIndex >= route.length - 2 && progress >= 1;
       if (done) {
-        setPosition(nextRoute[nextRoute.length - 1]);
+        setPosition(route[route.length - 1]);
         setIsMoving(false);
         return;
       }
@@ -76,7 +77,11 @@ export function useFakeUserPosition(
     return () => {
       cancelAnimationFrame(frameId);
     };
-  }, [poiEnd, poiStart]);
+  }, [poiEnd, route]);
 
-  return { position, route, isMoving };
+  return {
+    position: poiEnd ? position : poiStart,
+    route,
+    isMoving: poiEnd && route.length >= 2 ? isMoving : false,
+  };
 }

@@ -1,20 +1,15 @@
-import { Application, extend } from '@pixi/react';
-import {
-  Container,
-  Graphics,
-  Sprite,
-  Text,
-  Texture,
-} from 'pixi.js';
+import { Application, extend } from "@pixi/react";
+import { Container, Graphics, Sprite, Text, Texture } from "pixi.js";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
   type WheelEvent as ReactWheelEvent,
-} from 'react';
+} from "react";
 
-import { fetchPuntosInteres } from '../api/puntosInteres';
+import { fetchPuntosInteres } from "../api/puntosInteres";
 import {
   athleticTrack,
   avatarSpawnPoint,
@@ -25,8 +20,8 @@ import {
   campusWalkways,
   cidBlock,
   initialFocusPoint,
-} from '../campusMapConfig';
-import { useFakeUserPosition } from '../hooks/useFakeUserPosition';
+} from "../campusMapConfig";
+import { useFakeUserPosition } from "../hooks/useFakeUserPosition";
 import {
   flattenPoints,
   getSegmentLeftPolygon,
@@ -35,11 +30,16 @@ import {
   getTilePolygon,
   gridToScreen,
   ISO_ORIGIN,
-} from '../lib/isometric';
-import { POIDetailModal } from './POIDetailModal';
-import { POIMarker } from './POIMarker';
-import { poiTypeLabels, type GridPoint, type PoiFilters, type PuntoInteres } from '../types';
-import '../campus-map.css';
+} from "../lib/isometric";
+import { POIDetailModal } from "./POIDetailModal";
+import { POIMarker } from "./POIMarker";
+import {
+  poiTypeLabels,
+  type GridPoint,
+  type PoiFilters,
+  type PuntoInteres,
+} from "../types";
+import "../campus-map.css";
 
 extend({ Container, Graphics, Sprite, Text });
 
@@ -51,23 +51,23 @@ type CameraState = {
 };
 
 const avatarTexture = (() => {
-  const canvas = document.createElement('canvas');
+  const canvas = document.createElement("canvas");
   canvas.width = 20;
   canvas.height = 28;
-  const context = canvas.getContext('2d');
+  const context = canvas.getContext("2d");
 
   if (!context) return Texture.EMPTY;
 
-  context.fillStyle = '#f9d59d';
+  context.fillStyle = "#f9d59d";
   context.fillRect(7, 1, 6, 5);
-  context.fillStyle = '#23395d';
+  context.fillStyle = "#23395d";
   context.fillRect(5, 6, 10, 8);
-  context.fillStyle = '#6dd3ff';
+  context.fillStyle = "#6dd3ff";
   context.fillRect(7, 8, 6, 4);
-  context.fillStyle = '#1b2634';
+  context.fillStyle = "#1b2634";
   context.fillRect(7, 14, 2, 7);
   context.fillRect(11, 14, 2, 7);
-  context.fillStyle = '#ffe082';
+  context.fillStyle = "#ffe082";
   context.fillRect(4, 6, 2, 6);
   context.fillRect(14, 6, 2, 6);
 
@@ -78,7 +78,10 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function pointInRect(point: GridPoint, rect: { x: number; y: number; width: number; height: number }) {
+function pointInRect(
+  point: GridPoint,
+  rect: { x: number; y: number; width: number; height: number },
+) {
   return (
     point.x >= rect.x &&
     point.x <= rect.x + rect.width &&
@@ -106,7 +109,7 @@ function focusCameraOnPoint(
   point: GridPoint,
   viewport: { width: number; height: number },
   scale: number,
-): Pick<CameraState, 'x' | 'y'> {
+): Pick<CameraState, "x" | "y"> {
   const screen = gridToScreen(point);
   return {
     x: viewport.width / 2 - screen.x * scale,
@@ -116,7 +119,12 @@ function focusCameraOnPoint(
 
 export function MapaInteractivoViewer() {
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const dragStartRef = useRef<{ pointerX: number; pointerY: number; cameraX: number; cameraY: number } | null>(null);
+  const dragStartRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    cameraX: number;
+    cameraY: number;
+  } | null>(null);
 
   const [viewport, setViewport] = useState({ width: 1280, height: 720 });
   const [camera, setCamera] = useState<CameraState>(() => ({
@@ -125,20 +133,45 @@ export function MapaInteractivoViewer() {
     followAvatar: true,
   }));
   const [filters, setFilters] = useState<PoiFilters>({
-    tipo: 'all',
-    edificio: '',
+    tipo: "all",
+    edificio: "",
     soloActivos: true,
   });
   const [pois, setPois] = useState<PuntoInteres[]>([]);
-  const [selectedPoi, setSelectedPoi] = useState<PuntoInteres | null>(null);
+  const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [routeStart, setRouteStart] = useState<GridPoint>(avatarSpawnPoint);
   const [routeEnd, setRouteEnd] = useState<GridPoint | null>(null);
   const [baseMapTexture, setBaseMapTexture] = useState<Texture | null>(null);
 
-  const { position: avatarPosition, route: avatarRoute, isMoving } =
-    useFakeUserPosition(routeStart, routeEnd);
+  const {
+    position: avatarPosition,
+    route: avatarRoute,
+    isMoving,
+  } = useFakeUserPosition(routeStart, routeEnd);
+
+  const selectedPoi = useMemo(
+    () => pois.find((poi) => poi.id === selectedPoiId) ?? null,
+    [pois, selectedPoiId],
+  );
+
+  const visibleCamera = useMemo(() => {
+    if (!camera.followAvatar) {
+      return camera;
+    }
+
+    return {
+      ...camera,
+      ...focusCameraOnPoint(avatarPosition, viewport, camera.scale),
+    };
+  }, [avatarPosition, camera, viewport]);
+
+  const updateFilters = (updater: (current: PoiFilters) => PoiFilters) => {
+    setLoading(true);
+    setError(null);
+    setFilters(updater);
+  };
 
   useEffect(() => {
     const container = viewportRef.current;
@@ -160,14 +193,15 @@ export function MapaInteractivoViewer() {
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true);
-    setError(null);
 
     fetchPuntosInteres(filters, controller.signal)
       .then((data) => setPois(data))
       .catch((fetchError: unknown) => {
         if (controller.signal.aborted) return;
-        const message = fetchError instanceof Error ? fetchError.message : 'Error desconocido';
+        const message =
+          fetchError instanceof Error
+            ? fetchError.message
+            : "Error desconocido";
         setError(message);
         setPois([]);
       })
@@ -181,39 +215,16 @@ export function MapaInteractivoViewer() {
   }, [filters]);
 
   useEffect(() => {
-    if (!selectedPoi) return;
-    const stillExists = pois.some((poi) => poi.id === selectedPoi.id);
-    if (!stillExists) {
-      setSelectedPoi(null);
-    }
-  }, [pois, selectedPoi]);
-
-  useEffect(() => {
-    if (!routeEnd || isMoving) return;
-    setRouteStart(avatarPosition);
-    setRouteEnd(null);
-  }, [avatarPosition, isMoving, routeEnd]);
-
-  useEffect(() => {
-    if (!camera.followAvatar) return;
-
-    setCamera((current) => ({
-      ...current,
-      ...focusCameraOnPoint(avatarPosition, viewport, current.scale),
-    }));
-  }, [avatarPosition, camera.followAvatar, viewport]);
-
-  useEffect(() => {
     const explicitTextureUrl = import.meta.env.VITE_CAMPUS_MAP_TEXTURE_URL;
     const candidateUrls = explicitTextureUrl
       ? [explicitTextureUrl]
-      : ['/maps/cucei-campus-base.png', '/maps/cucei-campus-base.svg'];
+      : ["/maps/cucei-campus-base.png", "/maps/cucei-campus-base.svg"];
     let cancelled = false;
 
     const resolveTexture = async () => {
       for (const url of candidateUrls) {
         try {
-          const response = await fetch(url, { method: 'HEAD' });
+          const response = await fetch(url, { method: "HEAD" });
           if (!response.ok || cancelled) {
             continue;
           }
@@ -261,8 +272,8 @@ export function MapaInteractivoViewer() {
     dragStartRef.current = {
       pointerX: event.clientX,
       pointerY: event.clientY,
-      cameraX: camera.x,
-      cameraY: camera.y,
+      cameraX: visibleCamera.x,
+      cameraY: visibleCamera.y,
     };
   };
 
@@ -303,7 +314,11 @@ export function MapaInteractivoViewer() {
             onClick={() =>
               setCamera((current) => ({
                 ...current,
-                ...focusCameraOnPoint(initialFocusPoint, viewport, current.scale),
+                ...focusCameraOnPoint(
+                  initialFocusPoint,
+                  viewport,
+                  current.scale,
+                ),
                 followAvatar: false,
               }))
             }
@@ -333,7 +348,7 @@ export function MapaInteractivoViewer() {
               id="edificio-filter"
               value={filters.edificio}
               onChange={(event) =>
-                setFilters((current) => ({
+                updateFilters((current) => ({
                   ...current,
                   edificio: event.target.value,
                 }))
@@ -348,9 +363,9 @@ export function MapaInteractivoViewer() {
             <div className="filter-chip-grid">
               <button
                 type="button"
-                className={filters.tipo === 'all' ? 'chip active' : 'chip'}
+                className={filters.tipo === "all" ? "chip active" : "chip"}
                 onClick={() =>
-                  setFilters((current) => ({ ...current, tipo: 'all' }))
+                  updateFilters((current) => ({ ...current, tipo: "all" }))
                 }
               >
                 Todos
@@ -359,11 +374,11 @@ export function MapaInteractivoViewer() {
                 <button
                   key={type}
                   type="button"
-                  className={filters.tipo === type ? 'chip active' : 'chip'}
+                  className={filters.tipo === type ? "chip active" : "chip"}
                   onClick={() =>
-                    setFilters((current) => ({
+                    updateFilters((current) => ({
                       ...current,
-                      tipo: type as PoiFilters['tipo'],
+                      tipo: type as PoiFilters["tipo"],
                     }))
                   }
                 >
@@ -378,7 +393,7 @@ export function MapaInteractivoViewer() {
               type="checkbox"
               checked={filters.soloActivos}
               onChange={(event) =>
-                setFilters((current) => ({
+                updateFilters((current) => ({
                   ...current,
                   soloActivos: event.target.checked,
                 }))
@@ -388,8 +403,10 @@ export function MapaInteractivoViewer() {
           </label>
 
           <div className="status-card">
-            <span>{loading ? 'Cargando POIs...' : `${pois.length} POIs visibles`}</span>
-            <span>{isMoving ? 'Avatar en ruta' : 'Avatar en espera'}</span>
+            <span>
+              {loading ? "Cargando POIs..." : `${pois.length} POIs visibles`}
+            </span>
+            <span>{isMoving ? "Avatar en ruta" : "Avatar en espera"}</span>
           </div>
 
           {error ? <p className="error-banner">{error}</p> : null}
@@ -412,9 +429,9 @@ export function MapaInteractivoViewer() {
             autoDensity
           >
             <pixiContainer
-              x={camera.x}
-              y={camera.y}
-              scale={camera.scale}
+              x={visibleCamera.x}
+              y={visibleCamera.y}
+              scale={visibleCamera.scale}
               sortableChildren
             >
               {baseMapTexture ? (
@@ -446,7 +463,13 @@ export function MapaInteractivoViewer() {
                           ? 0x67b96a
                           : 0x5cab60;
 
-                      drawPolygon(graphics, getTilePolygon(x, y), tileColor, 0x2c5130, 1);
+                      drawPolygon(
+                        graphics,
+                        getTilePolygon(x, y),
+                        tileColor,
+                        0x2c5130,
+                        1,
+                      );
                     }
                   }
 
@@ -459,7 +482,11 @@ export function MapaInteractivoViewer() {
                     athleticTrack.radiusY * 12,
                   );
                   graphics.fill();
-                  graphics.setStrokeStyle({ color: 0xf7d37f, width: 3, alpha: 0.95 });
+                  graphics.setStrokeStyle({
+                    color: 0xf7d37f,
+                    width: 3,
+                    alpha: 0.95,
+                  });
                   graphics.ellipse(
                     trackCenter.x,
                     trackCenter.y,
@@ -468,12 +495,21 @@ export function MapaInteractivoViewer() {
                   );
                   graphics.stroke();
 
-                  graphics.setStrokeStyle({ color: 0xffeb55, width: 3, alpha: 0.96 });
-                  graphics.poly(flattenPoints(campusBoundary.map(gridToScreen)));
+                  graphics.setStrokeStyle({
+                    color: 0xffeb55,
+                    width: 3,
+                    alpha: 0.96,
+                  });
+                  graphics.poly(
+                    flattenPoints(campusBoundary.map(gridToScreen)),
+                  );
                   graphics.stroke();
 
                   const cidCenter = gridToScreen(cidBlock.grid);
-                  graphics.setFillStyle({ color: cidBlock.accent, alpha: 0.84 });
+                  graphics.setFillStyle({
+                    color: cidBlock.accent,
+                    alpha: 0.84,
+                  });
                   graphics.rect(cidCenter.x - 42, cidCenter.y - 28, 84, 64);
                   graphics.fill();
                 }}
@@ -507,7 +543,11 @@ export function MapaInteractivoViewer() {
                   }
 
                   if (avatarRoute.length > 1) {
-                    graphics.setStrokeStyle({ color: 0x82f0ff, width: 3, alpha: 0.9 });
+                    graphics.setStrokeStyle({
+                      color: 0x82f0ff,
+                      width: 3,
+                      alpha: 0.9,
+                    });
                     graphics.poly(flattenPoints(avatarRoute.map(gridToScreen)));
                     graphics.stroke();
                   }
@@ -528,11 +568,11 @@ export function MapaInteractivoViewer() {
                       y={labelScreen.y - 42}
                       anchor={0.5}
                       style={{
-                        fill: '#fff4f2',
-                        fontFamily: 'monospace',
+                        fill: "#fff4f2",
+                        fontFamily: "monospace",
                         fontSize: 16,
-                        fontWeight: '700',
-                        stroke: { color: '#66273a', width: 3 },
+                        fontWeight: "700",
+                        stroke: { color: "#66273a", width: 3 },
                       }}
                     />
                     {building.roofText ? (
@@ -542,10 +582,10 @@ export function MapaInteractivoViewer() {
                         y={roofTextPoint.y - 26}
                         anchor={0.5}
                         style={{
-                          fill: '#1c2430',
-                          fontFamily: 'monospace',
+                          fill: "#1c2430",
+                          fontFamily: "monospace",
                           fontSize: 8,
-                          fontWeight: '700',
+                          fontWeight: "700",
                         }}
                       />
                     ) : null}
@@ -564,11 +604,11 @@ export function MapaInteractivoViewer() {
                     anchor={0.5}
                     zIndex={40}
                     style={{
-                      fill: `#${area.accent.toString(16).padStart(6, '0')}`,
-                      fontFamily: 'monospace',
+                      fill: `#${area.accent.toString(16).padStart(6, "0")}`,
+                      fontFamily: "monospace",
                       fontSize: 12,
-                      fontWeight: '700',
-                      stroke: { color: '#ffffff', width: 2 },
+                      fontWeight: "700",
+                      stroke: { color: "#ffffff", width: 2 },
                     }}
                   />
                 );
@@ -579,7 +619,7 @@ export function MapaInteractivoViewer() {
                   key={poi.id}
                   poi={poi}
                   selected={selectedPoi?.id === poi.id}
-                  onSelect={setSelectedPoi}
+                  onSelect={(nextPoi) => setSelectedPoiId(nextPoi.id)}
                 />
               ))}
 
@@ -607,7 +647,7 @@ export function MapaInteractivoViewer() {
 
         <POIDetailModal
           poi={selectedPoi}
-          onClose={() => setSelectedPoi(null)}
+          onClose={() => setSelectedPoiId(null)}
           onSimulateRoute={handleSimulateRoute}
         />
       </div>
