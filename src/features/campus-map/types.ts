@@ -60,6 +60,7 @@ export type PuntoInteres = {
   descripcion: string | null;
   activo: boolean;
   edificioReferencia: string | null;
+  nearestPathNodeId: string | null;
   prioridadVisual: number;
 };
 

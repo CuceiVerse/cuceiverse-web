@@ -42,5 +42,8 @@ export async function fetchPuntosInteres(
   }
 
   const payload = (await response.json()) as PuntosInteresPayload;
-  return payload.data;
+  return payload.data.map((poi) => ({
+    ...poi,
+    nearestPathNodeId: poi.nearestPathNodeId ?? null,
+  }));
 }

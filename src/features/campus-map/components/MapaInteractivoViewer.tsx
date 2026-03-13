@@ -22,6 +22,8 @@ import {
   initialFocusPoint,
 } from '../campusMapConfig';
 import { useFakeUserPosition } from '../hooks/useFakeUserPosition';
+import type { EditorTool } from '../hooks/useMapEditor';
+import { screenToGrid } from '../lib/snapGrid';
 import {
   flattenPoints,
   gridCenterToScreen,
@@ -48,6 +50,39 @@ type CameraState = {
   y: number;
   scale: number;
   followAvatar: boolean;
+};
+
+/** Contrato que el modo edición expone al viewer. */
+type EditorInterface = {
+  activeTool: EditorTool;
+  /** Lista de POIs a mostrar (reemplaza los obtenidos de la API). */
+  pois: PuntoInteres[];
+  /** Nodos de pasillo pendientes. */
+  nodes: ReadonlyArray<{ xGrid: number; yGrid: number }>;
+  /** Aristas visibles en modo edición (coordenadas ya resueltas). */
+  edges: ReadonlyArray<{
+    from: GridPoint;
+    to: GridPoint;
+    status?: 'existing' | 'pending-create' | 'pending-delete';
+  }>;
+  /** Elementos de mobiliario / vegetación en edición. */
+  assets?: ReadonlyArray<{
+    id: string;
+    tipo: 'ARBOL' | 'ARBUSTO' | 'BANCA' | 'LUMINARIA' | 'BASURERO';
+    coordX: number;
+    coordY: number;
+    status?: 'existing' | 'pending-create' | 'pending-update' | 'pending-delete';
+  }>;
+  /** Nodo inicial seleccionado para crear una arista. */
+  edgeAnchor?: GridPoint | null;
+  /** Llamado cuando el usuario hace clic en una celda de la cuadrícula. */
+  onTileClick: (p: GridPoint) => void;
+  /** Inicia drag de un elemento editable. Retorna true si tomó el control del drag. */
+  onDragStart?: (p: GridPoint) => boolean;
+  /** Actualiza posición durante drag. */
+  onDragMove?: (p: GridPoint) => void;
+  /** Finaliza drag. */
+  onDragEnd?: (p: GridPoint) => void;
 };
 
 type TreeKind = 'palm' | 'cypress' | 'bush';
@@ -354,7 +389,7 @@ function focusCameraOnPoint(
   };
 }
 
-export function MapaInteractivoViewer() {
+export function MapaInteractivoViewer({ editor }: { editor?: EditorInterface } = {}) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const dragStartRef = useRef<{
     pointerX: number;
@@ -362,6 +397,7 @@ export function MapaInteractivoViewer() {
     cameraX: number;
     cameraY: number;
   } | null>(null);
+  const elementDragRef = useRef<{ active: boolean } | null>(null);
 
   const [viewport, setViewport] = useState({ width: 1280, height: 720 });
   const [camera, setCamera] = useState<CameraState>(() => ({
@@ -380,6 +416,8 @@ export function MapaInteractivoViewer() {
   const [error, setError] = useState<string | null>(null);
   const [routeStart, setRouteStart] = useState<GridPoint>(avatarSpawnPoint);
   const [routeEnd, setRouteEnd] = useState<GridPoint | null>(null);
+  /** Celda de cuadrícula bajo el cursor (solo activa en modo edición). */
+  const [editorGhost, setEditorGhost] = useState<GridPoint | null>(null);
 
   const {
     position: avatarPosition,
@@ -387,9 +425,12 @@ export function MapaInteractivoViewer() {
     isMoving,
   } = useFakeUserPosition(routeStart, routeEnd);
 
+  /** En modo edición usa los POIs provistos por el editor; si no, los del fetch. */
+  const displayPois = editor?.pois ?? pois;
+
   const selectedPoi = useMemo(
-    () => pois.find((poi) => poi.id === selectedPoiId) ?? null,
-    [pois, selectedPoiId],
+    () => displayPois.find((poi) => poi.id === selectedPoiId) ?? null,
+    [displayPois, selectedPoiId],
   );
 
   const visibleCamera = useMemo(() => {
@@ -470,6 +511,30 @@ export function MapaInteractivoViewer() {
   };
 
   const handleMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    // En herramientas de creación, priorizamos colocar elementos con clic izquierdo.
+    // El paneo queda disponible con botón medio/derecho o con herramienta select.
+    const allowPanWithThisClick =
+      event.button !== 0 || !editor || editor.activeTool === 'select';
+
+    if (editor?.onDragStart && editor.activeTool === 'select') {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const point = screenToGrid(
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        visibleCamera,
+      );
+      if (editor.onDragStart(point)) {
+        elementDragRef.current = { active: true };
+        dragStartRef.current = null;
+        return;
+      }
+    }
+
+    if (!allowPanWithThisClick) {
+      dragStartRef.current = null;
+      return;
+    }
+
     dragStartRef.current = {
       pointerX: event.clientX,
       pointerY: event.clientY,
@@ -479,6 +544,22 @@ export function MapaInteractivoViewer() {
   };
 
   const handleMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const snapped = screenToGrid(
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+      visibleCamera,
+    );
+
+    if (editor) {
+      setEditorGhost(snapped);
+    }
+
+    if (elementDragRef.current?.active && editor?.onDragMove) {
+      editor.onDragMove(snapped);
+      return;
+    }
+
     const drag = dragStartRef.current;
     if (!drag) return;
 
@@ -490,8 +571,38 @@ export function MapaInteractivoViewer() {
     }));
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const snapped = screenToGrid(
+      event.clientX - rect.left,
+      event.clientY - rect.top,
+      visibleCamera,
+    );
+
+    if (elementDragRef.current?.active) {
+      editor?.onDragEnd?.(snapped);
+      elementDragRef.current = null;
+      return;
+    }
+
+    const drag = dragStartRef.current;
+
+    if (drag && editor) {
+      const dx = event.clientX - drag.pointerX;
+      const dy = event.clientY - drag.pointerY;
+      const isDragGesture = Math.abs(dx) > 4 || Math.abs(dy) > 4;
+
+      if (!isDragGesture) {
+        editor.onTileClick(snapped);
+      }
+    }
+
     dragStartRef.current = null;
+  };
+
+  const handleMouseLeave = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (editor) setEditorGhost(null);
+    handleMouseUp(event);
   };
 
   const handleSimulateRoute = (poi: PuntoInteres) => {
@@ -614,7 +725,7 @@ export function MapaInteractivoViewer() {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
         >
           <Application
             resizeTo={viewportRef}
@@ -883,7 +994,7 @@ export function MapaInteractivoViewer() {
                 );
               })}
 
-              {pois.map((poi) => (
+              {displayPois.map((poi) => (
                 <POIMarker
                   key={poi.id}
                   poi={poi}
@@ -910,6 +1021,97 @@ export function MapaInteractivoViewer() {
                   roundPixels
                 />
               </pixiContainer>
+
+              {/* Capa del editor: ghost cursor + nodos de pasillo */}
+              {editor && (
+                <pixiGraphics
+                  zIndex={200}
+                  draw={(graphics) => {
+                    graphics.clear();
+
+                    for (const edge of editor.edges) {
+                      const edgeColor =
+                        edge.status === 'pending-create'
+                          ? 0x00e6a8
+                          : edge.status === 'pending-delete'
+                            ? 0xff5a5a
+                            : 0x4cd6ff;
+                      const edgeAlpha = edge.status === 'pending-delete' ? 0.7 : 0.95;
+                      const edgeWidth = edge.status === 'pending-delete' ? 3 : 2;
+                      graphics.setStrokeStyle({ color: edgeColor, width: edgeWidth, alpha: edgeAlpha });
+                      const from = gridCenterToScreen(edge.from);
+                      const to = gridCenterToScreen(edge.to);
+                      graphics.moveTo(from.x, from.y);
+                      graphics.lineTo(to.x, to.y);
+                      graphics.stroke();
+                    }
+
+                    for (const node of editor.nodes) {
+                      const center = gridCenterToScreen({ x: node.xGrid, y: node.yGrid });
+                      graphics.setFillStyle({ color: 0x7affea, alpha: 0.9 });
+                      graphics.circle(center.x, center.y, 5);
+                      graphics.fill();
+                      graphics.setStrokeStyle({ color: 0x00c8a8, width: 2, alpha: 1 });
+                      graphics.circle(center.x, center.y, 5);
+                      graphics.stroke();
+                    }
+
+                    if (editor.edgeAnchor) {
+                      const anchor = gridCenterToScreen(editor.edgeAnchor);
+                      graphics.setStrokeStyle({ color: 0xffe46d, width: 3, alpha: 1 });
+                      graphics.circle(anchor.x, anchor.y, 8);
+                      graphics.stroke();
+                    }
+
+                    if (!editorGhost) return;
+
+                    const tile = gridRectToScreen({
+                      x: editorGhost.x,
+                      y: editorGhost.y,
+                      width: 1,
+                      height: 1,
+                    });
+                    const ghostColor =
+                      editor.activeTool === 'asset'
+                        ? 0x64f0a4
+                        : editor.activeTool === 'building' || editor.activeTool === 'area'
+                          ? 0x6ea2ff
+                          :
+                      editor.activeTool === 'poi'
+                        ? 0xffd84d
+                        : editor.activeTool === 'walkway'
+                          ? 0x7affea
+                          : editor.activeTool === 'erase'
+                            ? 0xff4444
+                            : 0xffffff;
+
+                    graphics.setFillStyle({ color: ghostColor, alpha: 0.38 });
+                    graphics.rect(tile.x, tile.y, tile.width, tile.height);
+                    graphics.fill();
+                    graphics.setStrokeStyle({ color: ghostColor, width: 2, alpha: 0.9 });
+                    graphics.rect(tile.x, tile.y, tile.width, tile.height);
+                    graphics.stroke();
+
+                    for (const asset of editor.assets ?? []) {
+                      const center = gridCenterToScreen({ x: asset.coordX, y: asset.coordY });
+                      const color =
+                        asset.tipo === 'ARBOL'
+                          ? 0x2dbb62
+                          : asset.tipo === 'ARBUSTO'
+                            ? 0x5ac96f
+                            : asset.tipo === 'BANCA'
+                              ? 0xd7a66e
+                              : asset.tipo === 'LUMINARIA'
+                                ? 0xffef95
+                                : 0x7a8ca0;
+                      const alpha = asset.status === 'pending-delete' ? 0.45 : 0.92;
+                      graphics.setFillStyle({ color, alpha });
+                      graphics.circle(center.x, center.y, 4);
+                      graphics.fill();
+                    }
+                  }}
+                />
+              )}
             </pixiContainer>
           </Application>
         </div>
