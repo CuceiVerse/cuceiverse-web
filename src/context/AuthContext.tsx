@@ -3,6 +3,20 @@ import type { ReactNode } from "react";
 
 import { AuthContext } from "./AuthContextStore";
 
+/** Decodifica el campo isAdmin del payload JWT (sin verificar firma). */
+function decodeIsAdmin(token: string | null): boolean {
+  if (!token) return false;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const raw = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = JSON.parse(atob(raw)) as Record<string, unknown>;
+    return json["isAdmin"] === true;
+  } catch {
+    return false;
+  }
+}
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
@@ -29,6 +43,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const value = {
     token,
     isAuthenticated: !!token,
+    isAdmin: decodeIsAdmin(token),
     login,
     logout,
   };

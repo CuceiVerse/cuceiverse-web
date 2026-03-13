@@ -5,6 +5,7 @@ import { LoginView } from './views/LoginView';
 import { HomeView } from './views/HomeView';
 import { SubjectsView } from './views/SubjectsView';
 import { AvatarsView } from './views/AvatarsView';
+import { MapEditorView } from './views/MapEditorView';
 import { MainLayout } from './components/MainLayout';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -19,6 +20,17 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuth();
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+};
+
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { isAuthenticated, isAdmin } = useAuth();
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  if (!isAdmin) {
+    return <Navigate to="/home" replace />;
   }
   return <>{children}</>;
 };
@@ -44,6 +56,14 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route path="/home" element={<HomeView />} />
+        <Route
+          path="/admin/mapa"
+          element={
+            <AdminRoute>
+              <MapEditorView />
+            </AdminRoute>
+          }
+        />
         <Route path="/subjects" element={<SubjectsView />} />
         <Route path="/avatars" element={<AvatarsView />} />
         <Route path="/" element={<Navigate to="/home" replace />} />

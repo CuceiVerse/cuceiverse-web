@@ -1,28 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import 'tailwindcss';
 
 :root {
   --background: #09090b;
   --foreground: #fafafa;
-  
+
   --card: #18181b;
   --card-foreground: #fafafa;
-  
+
   --popover: #18181b;
   --popover-foreground: #fafafa;
-  
-  --primary: #3b82f6; /* Modern Blue */
+
+  --primary: #3b82f6;
+  /* Modern Blue */
   --primary-hover: #2563eb;
   --primary-foreground: #ffffff;
-  
+
   --secondary: #27272a;
   --secondary-foreground: #fafafa;
-  
+
   --muted: #27272a;
   --muted-foreground: #a1a1aa;
-  
+
   --accent: #3b82f6;
   --accent-foreground: #fafafa;
-  
+
   --destructive: #ef4444;
   --destructive-foreground: #fafafa;
 
@@ -66,8 +68,15 @@ body {
 
 /* Dynamic Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {

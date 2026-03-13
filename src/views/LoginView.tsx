@@ -2,40 +2,51 @@ import React, { useState } from "react";
 import { useAuth } from "../context/useAuth";
 import { LogIn, User, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { ParticlesBackground } from "../components/ParticlesBackground";
+import { loginWithCodigoNip } from "../features/auth/api/auth";
 import "./LoginView.css";
 
 export const LoginView: React.FC = () => {
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [nip, setNip] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doLogin = async (nextCodigo: string, nextNip: string) => {
     setError("");
     setIsLoading(true);
 
     try {
-      // Temporary MVP Mock: Replace with real axios call to NestJS
-      // const response = await axios.post('http://localhost:3000/auth/login', { email, password });
-      // login(response.data.access_token);
-
-      // Simulating network delay
-      await new Promise((resolve) => setTimeout(resolve, 800));
-
-      if (email && password) {
-        // Mock token for now until we connect the real backend
-        login("mock_jwt_token_for_testing");
-      } else {
+      if (!nextCodigo.trim() || !nextNip.trim()) {
         setError("Por favor, ingresa tus credenciales.");
+        return;
       }
+
+      const response = await loginWithCodigoNip(nextCodigo.trim(), nextNip);
+      login(response.accessToken);
     } catch (err: unknown) {
       console.error(err);
-      setError("Credenciales inválidas. Inténtalo de nuevo.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Credenciales inválidas. Inténtalo de nuevo.",
+      );
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await doLogin(codigo, nip);
+  };
+
+  const handleAdminTestAccess = async () => {
+    const adminCodigo = "admin";
+    const adminNip = "admin123";
+    setCodigo(adminCodigo);
+    setNip(adminNip);
+    await doLogin(adminCodigo, adminNip);
   };
 
   return (
@@ -55,29 +66,29 @@ export const LoginView: React.FC = () => {
           {error && <div className="error-message">{error}</div>}
 
           <div className="input-group">
-            <label htmlFor="email">Correo Electrónico</label>
+            <label htmlFor="codigo">Codigo</label>
             <div className="input-wrapper">
               <User size={18} className="input-icon" />
               <input
-                id="email"
+                id="codigo"
                 type="text"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="alumno@alumnos.udg.mx"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+                placeholder="Ej. 123456789"
                 disabled={isLoading}
               />
             </div>
           </div>
 
           <div className="input-group">
-            <label htmlFor="password">Contraseña</label>
+            <label htmlFor="nip">NIP</label>
             <div className="input-wrapper">
               <Lock size={18} className="input-icon" />
               <input
-                id="password"
+                id="nip"
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                value={nip}
+                onChange={(e) => setNip(e.target.value)}
                 placeholder="••••••••"
                 disabled={isLoading}
               />
@@ -97,6 +108,15 @@ export const LoginView: React.FC = () => {
                 <ArrowRight size={18} />
               </>
             )}
+          </button>
+
+          <button
+            type="button"
+            className="admin-test-btn"
+            disabled={isLoading}
+            onClick={() => void handleAdminTestAccess()}
+          >
+            Acceso Admin (Pruebas)
           </button>
         </form>
 
