@@ -1,7 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, Book, Clock, UserSquare, MapPin, ChevronLeft, ChevronRight, Hash, Building2, Calendar, X, Laptop, Users, MonitorSmartphone } from 'lucide-react';
 import mockData from '../data/mockSubjects.json';
+import { useAuth } from '../context/useAuth';
+import { useAcademicOffer } from '../context/useAcademicOffer';
+import type { AcademicOfferRecord } from '../context/AcademicOfferContextStore';
 import './SubjectsView.css';
 
 interface Subject {
@@ -62,15 +65,33 @@ const formatDays = (diasStr: string | number | null | undefined) => {
 };
 
 export const SubjectsView: React.FC = () => {
+  const { token } = useAuth();
+  const { state: offerState, loadAcademicOffer } = useAcademicOffer();
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
 
+  useEffect(() => {
+    if (!token) return;
+    if (offerState.offerRecords.length > 0 && offerState.status === 'ready') return;
+    if (offerState.status === 'loading') return;
+    void loadAcademicOffer(token, {
+      offerRecords: mockData as AcademicOfferRecord[],
+    });
+  }, [token, offerState.offerRecords.length, offerState.status, loadAcademicOffer]);
+
+  const sourceSubjects = useMemo(() => {
+    if (offerState.offerRecords.length > 0) {
+      return offerState.offerRecords as Subject[];
+    }
+    return mockData as Subject[];
+  }, [offerState.offerRecords]);
+
   const filteredSubjects = useMemo(() => {
     const q = normalize(searchTerm.trim());
-    if (!q) return mockData as Subject[];
+    if (!q) return sourceSubjects;
     
-    return (mockData as Subject[]).filter((subject) => {
+    return sourceSubjects.filter((subject) => {
       const modText = normalize(getModalidad(subject.Edificio).text);
 
       return (
@@ -82,7 +103,7 @@ export const SubjectsView: React.FC = () => {
         modText.includes(q)
       );
     });
-  }, [searchTerm]);
+  }, [searchTerm, sourceSubjects]);
 
   const totalPages = Math.ceil(filteredSubjects.length / ITEMS_PER_PAGE);
 
@@ -96,8 +117,12 @@ export const SubjectsView: React.FC = () => {
     setCurrentPage(1);
   };
 
+  const canShowSubjects = sourceSubjects.length > 0;
+
   return (
-    <div className="subjects-container animate-fade-in">
+    <>
+      <div className="subjects-scroll-area">
+        <div className="subjects-container animate-fade-in">
       <div className="subjects-header">
         <div className="header-title">
           <div className="icon-wrapper">
@@ -105,7 +130,7 @@ export const SubjectsView: React.FC = () => {
           </div>
           <div>
             <h1>Oferta Académica</h1>
-            <p>Explorando {mockData.length.toLocaleString()} materias disponibles en CUCEI.</p>
+            <p>Explorando {sourceSubjects.length.toLocaleString()} materias disponibles en CUCEI.</p>
           </div>
         </div>
 
@@ -121,7 +146,7 @@ export const SubjectsView: React.FC = () => {
       </div>
 
       <div className="subjects-grid">
-        {currentSubjects.length > 0 ? (
+        {canShowSubjects && currentSubjects.length > 0 ? (
           currentSubjects.map((subject, index) => {
             const modalidad = getModalidad(subject.Edificio);
             
@@ -170,8 +195,8 @@ export const SubjectsView: React.FC = () => {
         )}
       </div>
 
-      {totalPages > 1 && (
-        <div className="pagination-controls">
+          {canShowSubjects && totalPages > 1 && (
+            <div className="pagination-controls">
           <button 
             className="pagination-btn glass-panel"
             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
@@ -194,8 +219,10 @@ export const SubjectsView: React.FC = () => {
             Siguiente
             <ChevronRight size={20} />
           </button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Modal View for Subject Details */}
       {selectedSubject && createPortal(
@@ -276,6 +303,6 @@ export const SubjectsView: React.FC = () => {
         </div>,
         document.body
       )}
-    </div>
+    </>
   );
 };

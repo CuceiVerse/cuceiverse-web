@@ -59,6 +59,10 @@ type Props = {
   onPlaceBuildingBlock: (cell: GridCell) => void;
   onPlaceProp: (cell: GridCell) => void;
   viewMode?: 'isometric' | '2d';
+  /** Polilínea de la ruta recomendada principal (coordenadas de grid). */
+  routePolyline?: Array<{ x: number; y: number }>;
+  /** Polilíneas de rutas alternativas (coordenadas de grid). */
+  altPolylines?: Array<Array<{ x: number; y: number }>>;
 };
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
@@ -97,26 +101,71 @@ function getPropAtCell(
   return propsAtCell[0]?.id ?? null;
 }
 
-function centerCamera(
+function fitScaleToBounds(
   viewport: { width: number; height: number },
-  scale: number,
-): Pick<EditorCamera, 'x' | 'y'> {
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+): number {
+  const padding = 48;
+  const width = Math.max(1, bounds.maxX - bounds.minX);
+  const height = Math.max(1, bounds.maxY - bounds.minY);
+  const scaleByWidth = (viewport.width - padding * 2) / width;
+  const scaleByHeight = (viewport.height - padding * 2) / height;
+  const nextScale = Math.min(scaleByWidth, scaleByHeight);
+  if (!Number.isFinite(nextScale) || nextScale <= 0) {
+    return 1;
+  }
+  return clamp(nextScale, MIN_ZOOM, MAX_ZOOM);
+}
+
+function getIsoCampusBounds(grid: Props['editorState']['grid']) {
+  const maxColumn = Math.max(0, grid.columns - 1);
+  const maxRow = Math.max(0, grid.rows - 1);
+  const cornerCells: GridCell[] = [
+    { x: 0, y: 0 },
+    { x: maxColumn, y: 0 },
+    { x: 0, y: maxRow },
+    { x: maxColumn, y: maxRow },
+  ];
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const cell of cornerCells) {
+    const diamond = getIsoDiamond(cell, grid);
+    for (const point of diamond) {
+      minX = Math.min(minX, point.x);
+      minY = Math.min(minY, point.y);
+      maxX = Math.max(maxX, point.x);
+      maxY = Math.max(maxY, point.y);
+    }
+  }
+
+  return { minX, minY, maxX, maxY };
+}
+
+function get2DCampusBounds(grid: Props['editorState']['grid']) {
   return {
-    x: viewport.width / 2,
-    y: 120 * scale,
+    minX: 0,
+    minY: 0,
+    maxX: grid.columns * TILE_2D_SIZE,
+    maxY: grid.rows * TILE_2D_SIZE,
   };
 }
 
-function centerCamera2D(
+function fitCameraToBounds(
   viewport: { width: number; height: number },
-  scale: number,
-  grid: Props['editorState']['grid'],
-): Pick<EditorCamera, 'x' | 'y'> {
-  const mapWidth = grid.columns * TILE_2D_SIZE;
-  const mapHeight = grid.rows * TILE_2D_SIZE;
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+): EditorCamera {
+  const scale = fitScaleToBounds(viewport, bounds);
+  const centerX = (bounds.minX + bounds.maxX) / 2;
+  const centerY = (bounds.minY + bounds.maxY) / 2;
+
   return {
-    x: viewport.width / 2 - (mapWidth * scale) / 2,
-    y: viewport.height / 2 - (mapHeight * scale) / 2,
+    x: viewport.width / 2 - centerX * scale,
+    y: viewport.height / 2 - centerY * scale,
+    scale,
   };
 }
 
@@ -288,6 +337,8 @@ export function ModularMapCanvas({
   onPlaceBuildingBlock,
   onPlaceProp,
   viewMode = 'isometric',
+  routePolyline = [],
+  altPolylines = [],
 }: Props) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const panRef = useRef<{
@@ -302,12 +353,15 @@ export function ModularMapCanvas({
   const lastEraseCellKeyRef = useRef<string | null>(null);
 
   const [camera, setCamera] = useState<EditorCamera>(() => ({
-    ...centerCamera({ width: 1400, height: 820 }, 1),
-    scale: 1,
+    ...fitCameraToBounds(
+      { width: 1400, height: 820 },
+      getIsoCampusBounds(editorState.grid),
+    ),
   }));
   const [hoverCell, setHoverCell] = useState<GridCell | null>(null);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
+  const [viewportSize, setViewportSize] = useState({ width: 1400, height: 820 });
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -355,19 +409,30 @@ export function ModularMapCanvas({
       return;
     }
 
-    const currentScale = camera.scale;
-    const viewportSize = { width: viewport.clientWidth, height: viewport.clientHeight };
-    const centered =
-      viewMode === '2d'
-        ? centerCamera2D(viewportSize, currentScale, editorState.grid)
-        : centerCamera(viewportSize, currentScale);
+    const updateSize = () => {
+      setViewportSize({
+        width: Math.max(1, viewport.clientWidth),
+        height: Math.max(1, viewport.clientHeight),
+      });
+    };
 
-    setCamera((current) => ({
-      ...current,
-      x: centered.x,
-      y: centered.y,
-    }));
-  }, [viewMode, editorState.grid.columns, editorState.grid.rows]);
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(viewport);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const bounds =
+      viewMode === '2d'
+        ? get2DCampusBounds(editorState.grid)
+        : getIsoCampusBounds(editorState.grid);
+
+    setCamera(fitCameraToBounds(viewportSize, bounds));
+  }, [viewMode, viewportSize, editorState.grid.columns, editorState.grid.rows, editorState.grid.tileWidth, editorState.grid.tileHeight, editorState.grid.origin.x, editorState.grid.origin.y]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -975,6 +1040,65 @@ export function ModularMapCanvas({
                     drawGridTile(graphics, hoverCell, editorState.grid, hoverColor, 0.24, hoverColor);
                   }
                 }
+              }
+
+              // ── Rutas alternativas (capa inferior) ────────────────────────
+              for (const altPoly of altPolylines) {
+                if (altPoly.length < 2) {
+                  continue;
+                }
+                const firstAlt = gridToWorld(altPoly[0], editorState.grid, viewMode);
+                graphics.setStrokeStyle({ color: 0x94a3b8, width: 3, alpha: 0.45 });
+                graphics.moveTo(firstAlt.x, firstAlt.y);
+                for (let i = 1; i < altPoly.length; i += 1) {
+                  const pt = gridToWorld(altPoly[i], editorState.grid, viewMode);
+                  graphics.lineTo(pt.x, pt.y);
+                }
+                graphics.stroke();
+              }
+
+              // ── Ruta recomendada principal ────────────────────────────────
+              if (routePolyline.length >= 2) {
+                const firstPt = gridToWorld(routePolyline[0], editorState.grid, viewMode);
+                const lastPt = gridToWorld(
+                  routePolyline[routePolyline.length - 1],
+                  editorState.grid,
+                  viewMode,
+                );
+
+                // Halo/glow exterior
+                graphics.setStrokeStyle({ color: 0x34d399, width: 9, alpha: 0.22 });
+                graphics.moveTo(firstPt.x, firstPt.y);
+                for (let i = 1; i < routePolyline.length; i += 1) {
+                  const pt = gridToWorld(routePolyline[i], editorState.grid, viewMode);
+                  graphics.lineTo(pt.x, pt.y);
+                }
+                graphics.stroke();
+
+                // Línea principal
+                graphics.setStrokeStyle({ color: 0x10b981, width: 3.5, alpha: 0.97 });
+                graphics.moveTo(firstPt.x, firstPt.y);
+                for (let i = 1; i < routePolyline.length; i += 1) {
+                  const pt = gridToWorld(routePolyline[i], editorState.grid, viewMode);
+                  graphics.lineTo(pt.x, pt.y);
+                }
+                graphics.stroke();
+
+                // Marcador de origen (verde)
+                graphics.setFillStyle({ color: 0x10b981, alpha: 1 });
+                graphics.circle(firstPt.x, firstPt.y, 6);
+                graphics.fill();
+                graphics.setStrokeStyle({ color: 0xffffff, width: 2, alpha: 0.95 });
+                graphics.circle(firstPt.x, firstPt.y, 6);
+                graphics.stroke();
+
+                // Marcador de destino (rosa)
+                graphics.setFillStyle({ color: 0xf43f5e, alpha: 1 });
+                graphics.circle(lastPt.x, lastPt.y, 6);
+                graphics.fill();
+                graphics.setStrokeStyle({ color: 0xffffff, width: 2, alpha: 0.95 });
+                graphics.circle(lastPt.x, lastPt.y, 6);
+                graphics.stroke();
               }
             }}
           />

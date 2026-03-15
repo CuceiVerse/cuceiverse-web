@@ -7,9 +7,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
-      // Forward /habbo-api/* -> http://localhost:3000/api/*
+      // Forward /habbo-api/* -> http://localhost:4000/api/*
       '/habbo-api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:4000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/habbo-api/, '/api'),
       },

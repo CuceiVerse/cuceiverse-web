@@ -77,6 +77,7 @@
   display: flex;
   align-items: center;
   gap: 1.5rem;
+  position: relative;
 }
 
 .user-badge {
@@ -123,6 +124,163 @@
   background: rgba(239, 68, 68, 0.1);
   color: var(--destructive);
   border-color: rgba(239, 68, 68, 0.3);
+}
+
+.user-avatar-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(19, 25, 36, 0.75);
+  border-radius: 999px;
+  padding: 0.3rem 0.5rem 0.3rem 0.3rem;
+  cursor: pointer;
+  color: var(--foreground);
+}
+
+.user-avatar-trigger.open {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.nav-avatar-circle {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: white;
+  font-weight: 700;
+}
+
+.nav-avatar-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: pixelated;
+}
+
+.avatar-fallback {
+  font-size: 0.8rem;
+}
+
+.avatar-trigger-chevron {
+  opacity: 0.85;
+}
+
+.siiau-user-menu {
+  position: absolute;
+  top: calc(100% + 0.8rem);
+  right: 3.9rem;
+  width: min(420px, 92vw);
+  border-radius: 1rem;
+  z-index: 80;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.siiau-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.siiau-user-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.siiau-user-title strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.siiau-user-title span {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted-foreground);
+}
+
+.siiau-menu-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.siiau-loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.02);
+  min-height: 260px;
+  border-radius: 0.8rem;
+}
+
+.siiau-error {
+  font-size: 0.82rem;
+  color: #fca5a5;
+}
+
+.siiau-data-block {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.siiau-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.siiau-stats span {
+  font-size: 0.74rem;
+  color: #bfdbfe;
+  border: 1px solid rgba(147, 197, 253, 0.35);
+  background: rgba(30, 58, 138, 0.25);
+  border-radius: 999px;
+  padding: 0.25rem 0.5rem;
+}
+
+.siiau-courses-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.siiau-courses-list article {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(9, 14, 24, 0.72);
+  border-radius: 0.7rem;
+  padding: 0.5rem 0.6rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.siiau-courses-list strong {
+  font-size: 0.82rem;
+}
+
+.siiau-courses-list span {
+  font-size: 0.74rem;
+  color: var(--muted-foreground);
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .layout-content {

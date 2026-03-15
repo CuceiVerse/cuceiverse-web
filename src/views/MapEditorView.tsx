@@ -17,6 +17,11 @@ import {
   useModularMapStore,
   type PoiDraft,
 } from '../features/campus-map/editor/useModularMapStore';
+import {
+  clearRuntimeSeed,
+  loadRuntimeSeed,
+  saveRuntimeSeed,
+} from '../features/campus-map/lib/runtimeSeed';
 import type {
   BlockFootprint,
   GridCell,
@@ -30,7 +35,7 @@ type DragPalettePayload =
   | { kind: 'building-block'; paletteId: string; footprint: BlockFootprint }
   | { kind: 'prop'; propKind: PropKind };
 
-const modularSeed = campusModularSeed as ModularMapSeed;
+const bundledSeed = campusModularSeed as ModularMapSeed;
 const VIEW_MODE_STORAGE_KEY = 'cuceiverse.map.viewMode';
 
 function getInitialViewMode(): 'isometric' | '2d' {
@@ -42,6 +47,7 @@ function getInitialViewMode(): 'isometric' | '2d' {
 }
 
 export function MapEditorView() {
+  const modularSeed = useMemo(() => loadRuntimeSeed() ?? bundledSeed, []);
   const { isAdmin, token } = useAuth();
 
   const editorState = useModularMapStore(
@@ -93,6 +99,7 @@ export function MapEditorView() {
   const [loadingLayout, setLoadingLayout] = useState(true);
   const [savingLayout, setSavingLayout] = useState(false);
   const [viewMode, setViewMode] = useState<'isometric' | '2d'>(getInitialViewMode);
+  const [runtimeSeedSaved, setRuntimeSeedSaved] = useState(false);
 
   const payload = useMemo(
     () => serializeForSave(),
@@ -244,6 +251,19 @@ export function MapEditorView() {
     setMessage('Estado restaurado desde el seed modular base.');
   };
 
+  const handleSetRuntimeSeed = () => {
+    const current = useModularMapStore.getState().serializeForSave();
+    saveRuntimeSeed(current);
+    setRuntimeSeedSaved(true);
+    setMessage('Semilla activa actualizada: este mapa se usará como fallback automáticamente.');
+    setTimeout(() => setRuntimeSeedSaved(false), 3000);
+  };
+
+  const handleClearRuntimeSeed = () => {
+    clearRuntimeSeed();
+    setMessage('Semilla activa eliminada. Se usará el campusModularSeed incluido en el build.');
+  };
+
   const handleMoveProp = (id: string, cell: GridCell) => {
     const result = moveProp(id, cell);
     if (!result.ok && result.reason) {
@@ -384,6 +404,26 @@ export function MapEditorView() {
                 <path d="M3 4h14v3H3zM5 9h10v3H5zM7 14h6v3H7z" />
               </svg>
               <span className="text-[10px] font-black tracking-widest uppercase leading-none">2D</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSetRuntimeSeed}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-700 text-white hover:bg-emerald-600 transition-colors"
+              title="Guardar mapa actual como semilla activa (sin editar código)"
+            >
+              <span className="text-[10px] font-black tracking-widest uppercase leading-none">
+                {runtimeSeedSaved ? 'SEMILLA OK' : 'FIJAR SEMILLA'}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleClearRuntimeSeed}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-700 text-slate-100 hover:bg-slate-600 transition-colors"
+              title="Volver a la semilla incluida en el proyecto"
+            >
+              <span className="text-[10px] font-black tracking-widest uppercase leading-none">LIMPIAR SEMILLA</span>
             </button>
           </div>
         </div>

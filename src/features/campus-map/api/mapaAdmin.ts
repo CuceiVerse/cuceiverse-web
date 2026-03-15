@@ -65,6 +65,37 @@ export type ModularLayoutResponse = {
   };
 };
 
+export type RecommendedRoutePath = {
+  poiOrigenId: string;
+  poiDestinoId: string;
+  distanciaTotal: number;
+  nodeIds: string[];
+  polyline: Array<{ x: number; y: number }>;
+  origen: { x: number; y: number };
+  destino: { x: number; y: number };
+};
+
+export type RouteRecommendationCandidate = {
+  route_id: string;
+  score: number;
+  classification: string;
+  reason: string;
+  distance?: number;
+  crowd?: number;
+  accessibility?: number;
+  path: RecommendedRoutePath | null;
+};
+
+export type RouteRecommendationPayload = {
+  recommended_route: string;
+  score: number;
+  classification: string;
+  reason: string;
+  recommended_path: RecommendedRoutePath | null;
+  alternatives: RouteRecommendationCandidate[];
+  candidates: RouteRecommendationCandidate[];
+};
+
 export async function fetchMapGraph(token: string): Promise<MapGraphPayload> {
   const response = await fetch(`${API_BASE_URL}/mapa/grafo`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -210,4 +241,29 @@ export async function saveModularMapLayout(
   }
 
   return response.json() as Promise<ModularLayoutResponse>;
+}
+
+export async function recommendMapRoute(
+  token: string,
+  payload: {
+    poiOrigenId: string;
+    poiDestinoId: string;
+    alternativesLimit?: number;
+  },
+): Promise<RouteRecommendationPayload> {
+  const response = await fetch(`${API_BASE_URL}/mapa/ruta-recomendada`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => response.statusText);
+    throw new Error(`No se pudo recomendar ruta (${response.status}): ${text}`);
+  }
+
+  return response.json() as Promise<RouteRecommendationPayload>;
 }

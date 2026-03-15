@@ -22,7 +22,7 @@ export const LoginView: React.FC = () => {
         return;
       }
 
-      const response = await loginWithCodigoNip(nextCodigo.trim(), nextNip);
+      const response = await loginWithCodigoNip(nextCodigo.trim(), nextNip.trim());
       login(response.accessToken);
     } catch (err: unknown) {
       console.error(err);

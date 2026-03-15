@@ -5,6 +5,8 @@ import { LoginView } from './views/LoginView';
 import { HomeView } from './views/HomeView';
 import { SubjectsView } from './views/SubjectsView';
 import { AvatarsView } from './views/AvatarsView';
+import { StudentScheduleView } from './views/StudentScheduleView';
+import { AcademicProfileView } from './views/AcademicProfileView';
 import { MapEditorView } from './views/MapEditorView';
 import { MainLayout } from './components/MainLayout';
 
@@ -65,6 +67,8 @@ export const AppRoutes: React.FC = () => {
           }
         />
         <Route path="/subjects" element={<SubjectsView />} />
+        <Route path="/schedule" element={<StudentScheduleView />} />
+        <Route path="/profile-hud" element={<AcademicProfileView />} />
         <Route path="/avatars" element={<AvatarsView />} />
         <Route path="/" element={<Navigate to="/home" replace />} />
       </Route>

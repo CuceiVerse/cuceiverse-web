@@ -1,6 +1,11 @@
-import { User, Info } from "lucide-react";
+import { User, Info, Save } from "lucide-react";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
-import { buildFigureString, type FigurePart } from "../lib/figureString";
+import {
+  buildFigureString,
+  type FigurePart,
+} from "../lib/figureString";
+import { useAuth } from "../context/useAuth";
+import { getMyProfile, updateMyAvatar } from "../features/auth/api/auth";
 import "./AvatarsView.css";
 
 type Gender = "M" | "F";
@@ -60,7 +65,7 @@ const TYPE_LABELS: Record<string, string> = {
   wa: "Cintura",
 };
 
-// All calls (JSON + images) go through the Vite proxy → localhost:3000
+// All calls (JSON + images) go through the Vite proxy → localhost:4000
 // Port 3030 (imager) is internal to Docker and not reachable from the browser.
 const API_BASE = "/habbo-api";
 
@@ -112,7 +117,41 @@ function normalizeColors(
   return next;
 }
 
+function parseFigureString(figure: string): FigurePart[] {
+  return figure
+    .split(".")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map((segment) => {
+      const [type, setIdRaw, ...colorsRaw] = segment.split("-");
+      const setId = Number(setIdRaw);
+      const colors = colorsRaw
+        .map((c) => Number(c))
+        .filter((n) => Number.isFinite(n) && n > 0);
+
+      return { type, setId, colors };
+    })
+    .filter((p) => p.type && Number.isFinite(p.setId) && p.setId > 0);
+}
+
+function extractFigureFromAvatarValue(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.includes(".") && trimmed.includes("-")) return trimmed;
+
+  try {
+    const parsedUrl = new URL(trimmed, window.location.origin);
+    const figure = parsedUrl.searchParams.get("figure");
+    return figure?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 export const AvatarsView: React.FC = () => {
+  const { token, isAuthenticated } = useAuth();
   const [gender, setGender] = useState<Gender>("M");
   const [setTypes, setSetTypes] = useState<SetTypeInfo[]>([]);
   const [setsByType, setSetsByType] = useState<SetCache>({});
@@ -122,6 +161,9 @@ export const AvatarsView: React.FC = () => {
   const [activeColorSlot, setActiveColorSlot] = useState(0);
   const [loading, setLoading] = useState(true);
   const [initializing, setInitializing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [profileChecked, setProfileChecked] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const figure = useMemo(() => buildFigureString(parts), [parts]);
@@ -130,7 +172,7 @@ export const AvatarsView: React.FC = () => {
     [figure],
   );
 
-  const isFullyLoading = loading || initializing;
+  const isFullyLoading = loading || initializing || !profileChecked;
 
   // Debounced parts snapshot — used only for item tile previews.
   // Prevents flooding the imager with 20+ requests every time the user clicks.
@@ -178,12 +220,34 @@ export const AvatarsView: React.FC = () => {
       setSetTypes(data.setTypes);
     } catch {
       setError(
-        "No se pudo conectar al servicio de avatares en localhost:3000. ¿Está corriendo el Habbo Generator?",
+        "No se pudo conectar al servicio de avatares en localhost:4000. ¿Está corriendo el Habbo Generator?",
       );
     } finally {
       setLoading(false);
     }
   }, []);
+
+  const loadSavedAvatar = useCallback(async () => {
+    if (!isAuthenticated || !token) {
+      setProfileChecked(true);
+      return;
+    }
+
+    try {
+      const me = await getMyProfile(token);
+      const savedFigure = extractFigureFromAvatarValue(me.avatarUrl);
+      if (savedFigure) {
+        const savedParts = parseFigureString(savedFigure);
+        if (savedParts.length > 0) {
+          setParts(savedParts);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setProfileChecked(true);
+    }
+  }, [isAuthenticated, token]);
 
   const ensureSets = useCallback(
     async (type: string, gnd: Gender): Promise<SetInfo[]> => {
@@ -216,6 +280,11 @@ export const AvatarsView: React.FC = () => {
     void loadSetTypes();
   }, [loadSetTypes]);
 
+  useEffect(() => {
+    setProfileChecked(false);
+    void loadSavedAvatar();
+  }, [loadSavedAvatar]);
+
   // Load sets for active type when it changes
   useEffect(() => {
     if (!activeType || !setTypes.length) return;
@@ -236,7 +305,8 @@ export const AvatarsView: React.FC = () => {
 
   // Bootstrap random avatar on first load
   useEffect(() => {
-    if (!setTypes.length || parts.length > 0 || initializing) return;
+    if (!profileChecked || !setTypes.length || parts.length > 0 || initializing)
+      return;
 
     (async () => {
       setInitializing(true);
@@ -288,7 +358,42 @@ export const AvatarsView: React.FC = () => {
       console.error(err);
       setInitializing(false);
     });
-  }, [setTypes, gender, parts.length, ensureSets, ensurePalette, initializing]);
+  }, [
+    profileChecked,
+    setTypes,
+    gender,
+    parts.length,
+    ensureSets,
+    ensurePalette,
+    initializing,
+  ]);
+
+  const handleSaveAvatar = useCallback(async () => {
+    if (!isAuthenticated || !token) {
+      setSaveMessage("Inicia sesion para guardar tu avatar.");
+      return;
+    }
+    if (!figure) {
+      setSaveMessage("No hay avatar listo para guardar.");
+      return;
+    }
+
+    setSaving(true);
+    setSaveMessage(null);
+    try {
+      await updateMyAvatar(token, figure);
+      setSaveMessage("Avatar guardado y asignado a tu usuario.");
+    } catch (err) {
+      console.error(err);
+      setSaveMessage(
+        err instanceof Error
+          ? err.message
+          : "No se pudo guardar el avatar en tu perfil.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }, [figure, isAuthenticated, token]);
 
   function handleSelectSet(set: SetInfo) {
     const defaults = Array.from(
@@ -322,7 +427,8 @@ export const AvatarsView: React.FC = () => {
   }
 
   return (
-    <div className="avatars-container animate-fade-in">
+    <div className="avatars-scroll-area">
+      <div className="avatars-container animate-fade-in">
       <div className="avatars-header">
         <div className="header-title">
           <div className="icon-wrapper">
@@ -374,6 +480,29 @@ export const AvatarsView: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              <div className="figure-box glass-panel">
+                <span className="figure-label">Figura actual</span>
+                <span>{figure || "Sin definir"}</span>
+              </div>
+
+              <div className="quick-actions">
+                <button
+                  className="action-btn primary"
+                  onClick={() => void handleSaveAvatar()}
+                  disabled={saving || !figure}
+                >
+                  <Save size={16} />
+                  {saving ? "Guardando..." : "Guardar Avatar"}
+                </button>
+              </div>
+
+              {saveMessage && (
+                <div className="status-info">
+                  <Info size={16} />
+                  <span>{saveMessage}</span>
+                </div>
+              )}
             </div>
 
             {/* Right: Editor */}
@@ -509,6 +638,7 @@ export const AvatarsView: React.FC = () => {
           </div>
         )
       )}
+      </div>
     </div>
   );
 };
