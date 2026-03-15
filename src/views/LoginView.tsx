@@ -3,6 +3,7 @@ import { useAuth } from "../context/useAuth";
 import { LogIn, User, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { ParticlesBackground } from "../components/ParticlesBackground";
 import { loginWithCodigoNip } from "../features/auth/api/auth";
+import { SIIAU_LAST_NIP_STORAGE_KEY } from "../features/siiau/api/siiau";
 import "./LoginView.css";
 
 export const LoginView: React.FC = () => {
@@ -23,6 +24,7 @@ export const LoginView: React.FC = () => {
       }
 
       const response = await loginWithCodigoNip(nextCodigo.trim(), nextNip.trim());
+      sessionStorage.setItem(SIIAU_LAST_NIP_STORAGE_KEY, nextNip.trim());
       login(response.accessToken);
     } catch (err: unknown) {
       console.error(err);
