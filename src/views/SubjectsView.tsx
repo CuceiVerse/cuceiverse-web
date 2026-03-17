@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, Book, Clock, UserSquare, MapPin, ChevronLeft, ChevronRight, Hash, Building2, Calendar, X, Laptop, Users, MonitorSmartphone } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Search, Book, Clock, UserSquare, MapPin, ChevronLeft, ChevronRight, Hash, Building2, Calendar, X, Laptop, Users, MonitorSmartphone, RefreshCw } from 'lucide-react';
 import mockData from '../data/mockSubjects.json';
 import { useAuth } from '../context/useAuth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
@@ -70,6 +71,88 @@ export const SubjectsView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
+  const [reloading, setReloading] = useState(false);
+  const [reloadError, setReloadError] = useState<string | null>(null);
+  const [reloadSuccess, setReloadSuccess] = useState(false);
+  
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const q = searchParams.get('q') || searchParams.get('edificio');
+    if (q) {
+      setSearchTerm(decodeURIComponent(q));
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
+
+  const handleReload = useCallback(async () => {
+    if (!token || reloading) return;
+    setReloading(true);
+    setReloadError(null);
+    setReloadSuccess(false);
+
+    const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
+
+    try {
+      // 1. Iniciar la tarea en segundo plano
+      const initRes = await fetch(`${API_BASE}/offer/reload`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({}),
+      });
+
+      if (!initRes.ok) {
+        const errData = await initRes.json().catch(() => ({})) as { message?: string };
+        throw new Error(errData.message ?? `Error ${initRes.status}`);
+      }
+
+      // 2. Polling: esperar a que termine
+      let finished = false;
+      let lastResult: any = null;
+
+      while (!finished) {
+        await new Promise(r => setTimeout(r, 3000));
+        
+        const statusRes = await fetch(`${API_BASE}/offer/reload/status`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (!statusRes.ok) throw new Error('Se perdió la conexión con el servidor de horarios.');
+        
+        const statusData = await statusRes.json();
+        
+        if (statusData.lastError) {
+          throw new Error(statusData.lastError);
+        }
+
+        if (!statusData.running && statusData.hasResult) {
+          finished = true;
+          lastResult = statusData.materias;
+        }
+
+        // Si por alguna razón deja de correr sin resultado
+        if (!statusData.running && !statusData.hasResult) {
+          finished = true;
+        }
+      }
+
+      // 3. Procesar resultados
+      if (lastResult && lastResult.length > 0) {
+        void loadAcademicOffer(token, { force: true, offerRecords: lastResult });
+        setReloadSuccess(true);
+        setTimeout(() => setReloadSuccess(false), 5000);
+      } else {
+        throw new Error('El scraping terminó sin encontrar materias.');
+      }
+    } catch (err) {
+      setReloadError(err instanceof Error ? err.message : 'No se pudo completar el scraping.');
+    } finally {
+      setReloading(false);
+    }
+  }, [token, reloading, loadAcademicOffer]);
 
   useEffect(() => {
     if (!token) return;
@@ -142,6 +225,23 @@ export const SubjectsView: React.FC = () => {
             value={searchTerm}
             onChange={handleSearchChange}
           />
+        </div>
+
+        <div className="reload-controls">
+          <button
+            className={`reload-btn glass-panel${reloading ? ' reloading' : ''}${reloadSuccess ? ' success' : ''}`}
+            onClick={() => void handleReload()}
+            disabled={reloading}
+            title="Vuelve a descargar la oferta académica más reciente de SIIAU"
+          >
+            <RefreshCw size={16} className={reloading ? 'spin-icon' : ''} />
+            <span>{reloading ? 'Cargando...' : reloadSuccess ? '¡Actualizado!' : 'Volver a cargar'}</span>
+          </button>
+          {reloadError && (
+            <span className="reload-error">
+              ⚠️ {reloadError}
+            </span>
+          )}
         </div>
       </div>
 

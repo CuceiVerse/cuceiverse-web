@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bot, MessageCircle, Send, X } from 'lucide-react';
 
 import { useAuth } from '../../../context/useAuth';
@@ -16,7 +17,6 @@ type ChatEntry = {
 };
 
 const EMPTY_CONTEXT: AssistantContext = {};
-const ASSISTANT_STORAGE_KEY = 'cuceiverse.assistant.widget.v1';
 const DEFAULT_SUGGESTIONS = [
   '¿Cómo llego a Control Escolar?',
   '¿Qué clases tengo hoy?',
@@ -29,11 +29,87 @@ const DEFAULT_WELCOME_ENTRY: ChatEntry = {
     'Hola, soy tu asistente CUCEIverse. Puedo ayudarte con rutas del campus, horario, materias y dudas de la plataforma.',
 };
 
-type PersistedAssistantWidgetState = {
-  entries: ChatEntry[];
-  context: AssistantContext;
-  suggestions: string[];
-};
+function MarkdownRenderer({ text }: { text: string }) {
+  const navigate = useNavigate();
+
+  const handleClick = (e: MouseEvent<HTMLAnchorElement>, url: string) => {
+    if (url.startsWith('/')) {
+      e.preventDefault();
+      navigate(url);
+    }
+  };
+
+  const parts = [];
+  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  let match;
+  let lastIndex = 0;
+
+  while ((match = linkRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: text.substring(lastIndex, match.index) });
+    }
+    parts.push({ type: 'link', label: match[1], url: match[2] });
+    lastIndex = linkRegex.lastIndex;
+  }
+  
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.substring(lastIndex) });
+  }
+
+  return (
+    <span className="leading-relaxed">
+      {parts.map((part, i) => {
+        if (part.type === 'link') {
+          return (
+            <a
+              key={i}
+              href={part.url}
+              onClick={(e) => handleClick(e, part.url as string)}
+              target={part.url?.startsWith('/') ? undefined : '_blank'}
+              rel={part.url?.startsWith('/') ? undefined : 'noopener noreferrer'}
+              className="text-emerald-400 font-medium underline hover:text-emerald-300 transition-colors inline-block mx-0.5"
+            >
+              {part.label}
+            </a>
+          );
+        }
+
+        // Process bold and newlines within the text
+        const content = part.content as string;
+        
+        // Handle double newlines as paragraphs first
+        const paragraphs = content.split('\n\n');
+        
+        return (
+          <span key={i}>
+            {paragraphs.map((para, pIdx) => (
+              <span key={pIdx}>
+                {para.split(/(\*\*.*?\*\*)/g).map((t, j) => {
+                  if (t.startsWith('**') && t.endsWith('**')) {
+                    return <strong key={j} className="text-white font-semibold">{t.slice(2, -2)}</strong>;
+                  }
+                  
+                  const lines = t.split('\n');
+                  return (
+                    <span key={j}>
+                      {lines.map((ln, k) => (
+                        <span key={k}>
+                          {ln}
+                          {k < lines.length - 1 && <br />}
+                        </span>
+                      ))}
+                    </span>
+                  );
+                })}
+                {pIdx < paragraphs.length - 1 && <div className="h-2" />}
+              </span>
+            ))}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 export function CampusAssistantWidget() {
   const { token, isAuthenticated } = useAuth();
@@ -50,7 +126,6 @@ export function CampusAssistantWidget() {
     [entries],
   );
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
-  const storageHydratedRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
@@ -60,41 +135,12 @@ export function CampusAssistantWidget() {
   }, [entries, loading, open]);
 
   useEffect(() => {
-    if (!isAuthenticated || storageHydratedRef.current || typeof window === 'undefined') return;
-    storageHydratedRef.current = true;
-
-    const raw = window.localStorage.getItem(ASSISTANT_STORAGE_KEY);
-    if (!raw) return;
-
-    try {
-      const parsed = JSON.parse(raw) as PersistedAssistantWidgetState;
-      const nextEntries = Array.isArray(parsed.entries) && parsed.entries.length > 0
-        ? parsed.entries.slice(-40)
-        : [DEFAULT_WELCOME_ENTRY];
-
-      setEntries(nextEntries);
-      setContext(parsed.context ?? EMPTY_CONTEXT);
-      setSuggestions(
-        Array.isArray(parsed.suggestions) && parsed.suggestions.length > 0
-          ? parsed.suggestions.slice(0, 6)
-          : DEFAULT_SUGGESTIONS,
-      );
-    } catch {
-      window.localStorage.removeItem(ASSISTANT_STORAGE_KEY);
-    }
+    if (!isAuthenticated) return;
+    // Cleared the previous localStorage hydration so conversations reset on reload
+    setEntries([DEFAULT_WELCOME_ENTRY]);
+    setContext(EMPTY_CONTEXT);
+    setSuggestions(DEFAULT_SUGGESTIONS);
   }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !storageHydratedRef.current || typeof window === 'undefined') return;
-
-    const payload: PersistedAssistantWidgetState = {
-      entries: entries.slice(-40),
-      context,
-      suggestions: suggestions.slice(0, 6),
-    };
-
-    window.localStorage.setItem(ASSISTANT_STORAGE_KEY, JSON.stringify(payload));
-  }, [entries, context, suggestions, isAuthenticated]);
 
   const pushAssistantAction = (action?: AssistantRouteAction) => {
     if (!action || action.type !== 'highlight-route') return;
@@ -165,45 +211,52 @@ export function CampusAssistantWidget() {
 
   return (
     <>
-      {open ? (
-        <section className="fixed bottom-6 left-6 z-[1200] flex h-[30rem] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-cyan-500/25 bg-[#050B1C]/95 shadow-[0_25px_60px_rgba(0,0,0,0.65)] backdrop-blur-md">
-          <header className="flex items-center justify-between border-b border-slate-700/70 bg-slate-900/70 px-4 py-3">
-            <div className="flex items-center gap-2 text-cyan-200">
-              <Bot size={18} />
-              <strong className="text-sm">Asistente CUCEIverse</strong>
+        {open ? (
+        <section className="fixed bottom-6 left-6 z-[1200] flex h-[36rem] w-[24rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/90 shadow-[0_0_80px_rgba(0,0,0,0.8),0_0_30px_rgba(34,211,238,0.15)] backdrop-blur-xl">
+          <header className="flex items-center justify-between border-b border-white/5 bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-emerald-400 text-slate-900 shadow-[0_0_15px_rgba(34,211,238,0.4)]">
+                <Bot size={18} />
+              </div>
+              <strong className="text-sm font-medium tracking-wide text-white">Asistente CUCEIverse</strong>
             </div>
             <button
               type="button"
-              className="rounded-full p-1 text-slate-300 transition hover:bg-slate-700 hover:text-white"
+              className="rounded-full p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
               onClick={() => setOpen(false)}
             >
               <X size={16} />
             </button>
           </header>
 
-          <div ref={messagesContainerRef} className="flex-1 space-y-3 overflow-y-auto bg-[#060F26] px-3 py-3">
+          <div ref={messagesContainerRef} className="flex-1 space-y-8 overflow-y-auto bg-slate-900/40 p-5 pt-10 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
             {entries.map((entry) => (
               <article
                 key={entry.id}
-                className={`max-w-[90%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
+                className={`relative max-w-[88%] rounded-2xl px-4 py-2.5 text-[0.93rem] leading-relaxed shadow-md transition-all ${
                   entry.role === 'assistant'
-                    ? 'mr-auto border border-cyan-500/20 bg-cyan-500/10 text-cyan-100'
-                    : 'ml-auto border border-emerald-500/20 bg-emerald-500/15 text-emerald-100'
+                    ? 'mr-auto rounded-tl-none bg-[#202c33] text-gray-100'
+                    : 'ml-auto rounded-tr-none bg-[#005c4b] text-white'
                 }`}
               >
-                {entry.content}
+                {/* Whatsapp-style tail injection */}
+                <div className={`absolute top-0 w-3 h-3 ${entry.role === 'assistant' ? '-left-2 bg-[#202c33] [clip-path:polygon(100%_0,0_0,100%_100%)]' : '-right-2 bg-[#005c4b] [clip-path:polygon(0_0,100%_0,0_100%)]'}`}></div>
+                <MarkdownRenderer text={entry.content} />
               </article>
             ))}
             {loading ? (
-              <article className="mr-auto rounded-xl border border-slate-700/60 bg-slate-800/60 px-3 py-2 text-sm text-slate-300">
-                Pensando respuesta...
+              <article className="relative mr-auto flex gap-2 rounded-2xl rounded-tl-none bg-[#202c33] px-4 py-3 text-sm text-slate-400 shadow-sm">
+                 <div className="absolute top-0 -left-2 w-3 h-3 bg-[#202c33] [clip-path:polygon(100%_0,0_0,100%_100%)]"></div>
+                 <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500/80"></span>
+                 <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500/80 [animation-delay:-0.15s]"></span>
+                 <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500/80 [animation-delay:-0.3s]"></span>
               </article>
             ) : null}
           </div>
 
-          <footer className="border-t border-slate-700/60 bg-slate-900/80 p-3">
+          <footer className="border-t border-white/5 bg-slate-900/90 p-3 shadow-[0_-10px_30px_rgba(0,0,0,0.3)] backdrop-blur-md">
             {suggestions.length > 0 ? (
-              <div className="mb-2 flex flex-wrap gap-2">
+              <div className="mb-3 flex flex-wrap gap-2">
                 {suggestions.slice(0, 3).map((suggestion) => (
                   <button
                     key={suggestion}
@@ -213,10 +266,10 @@ export function CampusAssistantWidget() {
                       setActiveSuggestion(suggestion);
                       void sendMessage(suggestion);
                     }}
-                    className={`rounded-full border px-3 py-1 text-xs transition disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500 ${
+                    className={`rounded-full border px-3 py-1.5 text-[0.8rem] tracking-wide transition-all disabled:opacity-50 ${
                       activeSuggestion === suggestion
-                        ? 'border-emerald-400/65 bg-emerald-500/25 text-emerald-100'
-                        : 'border-cyan-500/35 bg-cyan-500/10 text-cyan-100 hover:bg-cyan-500/20'
+                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300'
+                        : 'border-cyan-500/30 bg-slate-800/80 text-cyan-300 hover:border-cyan-400 md:hover:bg-cyan-500/10'
                     }`}
                   >
                     {suggestion}
@@ -237,16 +290,16 @@ export function CampusAssistantWidget() {
                     void sendMessage();
                   }
                 }}
-                placeholder="Pregunta por rutas, clases o promedio..."
-                className="h-10 flex-1 rounded-lg border border-slate-700 bg-[#0a132d] px-3 text-sm text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-2 focus:ring-cyan-500/20"
+                placeholder="Pregunta por rutas, clases o profesores..."
+                className="h-11 flex-1 rounded-xl border border-white/10 bg-slate-950 px-4 text-sm text-slate-100 shadow-inner outline-none transition placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50"
               />
               <button
                 type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-cyan-400/40 bg-cyan-500/20 text-cyan-100 transition hover:bg-cyan-500/30 disabled:border-slate-700 disabled:bg-slate-800 disabled:text-slate-500"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 text-white shadow-lg transition hover:brightness-110 active:scale-95 disabled:pointer-events-none disabled:opacity-50 grayscale-0 disabled:grayscale"
                 disabled={loading || !input.trim()}
                 onClick={() => void sendMessage()}
               >
-                <Send size={16} />
+                <Send size={18} className="translate-x-[1px]" />
               </button>
             </div>
           </footer>
@@ -256,10 +309,10 @@ export function CampusAssistantWidget() {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-6 left-6 z-[1199] inline-flex h-14 w-14 items-center justify-center rounded-full border border-cyan-400/45 bg-gradient-to-br from-cyan-500/25 to-emerald-500/25 text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.35)] transition hover:scale-105 hover:shadow-[0_0_34px_rgba(16,185,129,0.45)]"
+        className="fixed bottom-6 left-6 z-[1199] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-600 to-emerald-500 text-white shadow-[0_10px_35px_rgba(16,185,129,0.35)] transition-all hover:scale-110 hover:shadow-[0_15px_40px_rgba(34,211,238,0.5)] active:scale-95"
         aria-label="Abrir asistente universitario"
       >
-        <MessageCircle size={22} />
+        <MessageCircle size={28} />
       </button>
     </>
   );

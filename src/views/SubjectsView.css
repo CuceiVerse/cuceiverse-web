@@ -496,3 +496,68 @@
     max-width: 100%;
   }
 }
+
+/* =====================
+   Reload Button
+===================== */
+.reload-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.reload-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.reload-btn:hover:not(:disabled) {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: var(--primary);
+  color: #93c5fd;
+}
+
+.reload-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.reload-btn.reloading {
+  border-color: rgba(234, 179, 8, 0.4);
+  color: #facc15;
+  background: rgba(234, 179, 8, 0.08);
+}
+
+.reload-btn.success {
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.spin-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.reload-error {
+  font-size: 0.82rem;
+  color: #f87171;
+  max-width: 280px;
+}
+

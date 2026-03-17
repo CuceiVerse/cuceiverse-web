@@ -65,7 +65,7 @@ const TYPE_LABELS: Record<string, string> = {
   wa: "Cintura",
 };
 
-// All calls (JSON + images) go through the Vite proxy → localhost:4000
+// All calls (JSON + images) go through the Vite proxy → localhost:3000
 // Port 3030 (imager) is internal to Docker and not reachable from the browser.
 const API_BASE = "/habbo-api";
 
@@ -220,7 +220,7 @@ export const AvatarsView: React.FC = () => {
       setSetTypes(data.setTypes);
     } catch {
       setError(
-        "No se pudo conectar al servicio de avatares en localhost:4000. ¿Está corriendo el Habbo Generator?",
+        "No se pudo conectar al servicio de avatares en localhost:3000. ¿Está corriendo el Habbo Generator?",
       );
     } finally {
       setLoading(false);
