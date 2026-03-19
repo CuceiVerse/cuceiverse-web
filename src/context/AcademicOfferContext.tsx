@@ -124,10 +124,9 @@ export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
 
         let lastKnownRequestedAt: string | null = null;
         let lastKnownUpdatedAt: string | null = null;
+        let attemptedIdleKickoff = false;
 
         const tryDirectSnapshotFallback = async (reason: string): Promise<boolean> => {
-          if (!force) return false;
-
           const nip = sessionStorage.getItem(SIIAU_LAST_NIP_STORAGE_KEY)?.trim() ?? '';
           if (!nip) {
             if (import.meta.env.DEV) {
@@ -225,6 +224,14 @@ export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
                 updatedAt: next.updatedAt,
               });
               return;
+            }
+
+            if (next.status === 'idle' && !attemptedIdleKickoff) {
+              attemptedIdleKickoff = true;
+              const recovered = await tryDirectSnapshotFallback('status-idle');
+              if (recovered) {
+                return;
+              }
             }
 
             if (next.status === 'error') {
