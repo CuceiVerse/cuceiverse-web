@@ -1,0 +1,192 @@
+.academic-profile-scroll-area {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.academic-profile-container {
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 2.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.academic-profile-header {
+  border-radius: 1rem;
+  padding: 1.15rem 1.5rem;
+}
+
+.title-wrap {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.title-wrap h1 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.title-wrap p {
+  margin: 0.3rem 0 0;
+  color: var(--muted-foreground);
+}
+
+.academic-profile-state {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  padding: 1.1rem 1.3rem;
+  border-radius: 14px;
+}
+
+.academic-profile-state p {
+  margin: 0;
+  flex: 1 1 320px;
+}
+
+.academic-profile-state a {
+  color: #38bdf8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.profile-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+  border-radius: 10px;
+  padding: 0.5rem 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.profile-sync-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: rgba(56, 189, 248, 0.75);
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.profile-sync-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.academic-profile-state.error {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.academic-profile-state-error-detail {
+  margin-top: -0.5rem;
+  color: #fca5a5;
+  font-size: 0.9rem;
+  padding-inline: 0.25rem;
+}
+
+.profile-loading-screen {
+  padding: 2rem 1.5rem;
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+}
+
+.profile-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  width: min(520px, 100%);
+  text-align: center;
+}
+
+.profile-loading-content h2 {
+  margin: 0.4rem 0 0;
+  font-size: 1.2rem;
+}
+
+.profile-loading-content p {
+  margin: 0;
+  color: var(--muted-foreground);
+}
+
+.profile-spinner-ring {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 3px solid rgba(59, 130, 246, 0.25);
+  border-top-color: rgba(34, 211, 238, 0.95);
+  border-radius: 999px;
+  animation: profile-spin 1s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+.profile-spinner-ring-inner {
+  width: 26px;
+  height: 26px;
+  border: 2px solid rgba(34, 211, 238, 0.35);
+  border-right-color: rgba(99, 102, 241, 0.95);
+  border-radius: 999px;
+  animation: profile-spin 1.25s linear infinite reverse;
+}
+
+.profile-loading-bar {
+  width: min(380px, 100%);
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+  background: rgba(15, 23, 42, 0.35);
+  overflow: hidden;
+  margin-top: 0.45rem;
+}
+
+.profile-loading-bar-fill {
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #22d3ee 0%, #3b82f6 100%);
+  animation: profile-progress 1.9s linear infinite;
+}
+
+@keyframes profile-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes profile-progress {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (max-width: 920px) {
+  .academic-profile-container {
+    padding: 1.25rem;
+  }
+
+  .academic-profile-header {
+    padding: 1rem 1.1rem;
+  }
+
+  .academic-profile-state {
+    padding: 0.95rem 1rem;
+  }
+
+  .profile-loading-screen {
+    min-height: 160px;
+    padding: 1.5rem 1rem;
+  }
+}

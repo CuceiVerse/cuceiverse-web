@@ -1,0 +1,129 @@
+.tool-palette {
+    position: absolute;
+    top: 50%;
+    right: 16px;
+    transform: translateY(-50%);
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: rgba(14, 22, 32, 0.88);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(100, 180, 255, 0.25);
+    border-radius: 12px;
+    padding: 14px 12px;
+    min-width: 130px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    color: #e8f4ff;
+    font-family: monospace;
+}
+
+.tool-palette__title {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-align: center;
+    color: #7fd4ff;
+    text-transform: uppercase;
+}
+
+.tool-palette__tools {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tool-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: #c8dff0;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    text-align: left;
+    width: 100%;
+}
+
+.tool-btn:hover {
+    background: rgba(100, 180, 255, 0.15);
+    border-color: rgba(100, 180, 255, 0.35);
+}
+
+.tool-btn--active {
+    background: rgba(100, 180, 255, 0.22);
+    border-color: #5ab8f5;
+    color: #fff;
+}
+
+.tool-btn__icon {
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.tool-btn__label {
+    font-family: monospace;
+    font-size: 11px;
+    line-height: 1;
+}
+
+.tool-palette__legend {
+    font-size: 10px;
+    color: #8aafcc;
+    line-height: 1.4;
+    padding: 4px 2px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    min-height: 28px;
+}
+
+.tool-palette__actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.save-btn {
+    padding: 8px;
+    background: linear-gradient(135deg, #2a8c5a, #1d6e45);
+    border: 1px solid #3cb872;
+    border-radius: 8px;
+    color: #fff;
+    font-family: monospace;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.save-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.discard-btn {
+    padding: 7px;
+    background: transparent;
+    border: 1px solid rgba(255, 90, 90, 0.4);
+    border-radius: 8px;
+    color: #ff9999;
+    font-family: monospace;
+    font-size: 11px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.discard-btn:hover:not(:disabled) {
+    background: rgba(255, 90, 90, 0.12);
+}
+
+.discard-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
