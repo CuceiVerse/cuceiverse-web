@@ -205,11 +205,16 @@ export async function recalculateNearestPathNodes(
 }
 
 export async function fetchModularMapLayout(
-  token: string,
+  token: string | null | undefined,
   mapId: string,
 ): Promise<ModularLayoutResponse> {
+  const headers: HeadersInit = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE_URL}/mapa/layout-modular/${mapId}`, {
-    headers: { Authorization: `Bearer ${token}` },
+    headers,
   });
 
   if (!response.ok) {

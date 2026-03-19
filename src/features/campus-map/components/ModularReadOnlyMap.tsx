@@ -317,13 +317,6 @@ export function ModularReadOnlyMap() {
   }, [status]);
 
   useEffect(() => {
-    if (!token) {
-      setStatus('Sin token, mostrando seed local.');
-      setLayout(fallbackSeed);
-      setIsSyncing(false);
-      return;
-    }
-
     let cancelled = false;
     setStatus('Cargando mapa modular...');
     setIsSyncing(true);
