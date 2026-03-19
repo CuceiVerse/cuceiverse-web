@@ -1,5 +1,6 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 export const SIIAU_LAST_NIP_STORAGE_KEY = 'cuceiverse_siiau_last_nip';
+const REQUEST_TIMEOUT_MS = 15000;
 
 function shortToken(token: string): string {
   if (!token) return 'empty';
@@ -79,11 +80,20 @@ export async function fetchSessionSiiauSnapshot(
     });
   }
 
-  const response = await fetch(`${API_BASE_URL}/siiau/session-snapshot`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/siiau/session-snapshot`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new Error('Tiempo de espera agotado al consultar SIIAU. Intenta de nuevo en unos segundos.');
+    }
+    throw new Error('No fue posible conectar con el backend de SIIAU.');
+  }
 
   const rawText = await response.text();
   let data: Record<string, unknown> = {};
@@ -138,18 +148,27 @@ export async function fetchSnapshotMe(
     });
   }
 
-  const response = await fetch(`${API_BASE_URL}/siiau/snapshot/me`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      nip: nip.trim(),
-      ...(carreraPrefer ? { carreraPrefer } : {}),
-      ...(cicloPrefer ? { cicloPrefer } : {}),
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/siiau/snapshot/me`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        nip: nip.trim(),
+        ...(carreraPrefer ? { carreraPrefer } : {}),
+        ...(cicloPrefer ? { cicloPrefer } : {}),
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'TimeoutError') {
+      throw new Error('Tiempo de espera agotado al cargar el perfil academico.');
+    }
+    throw new Error('No fue posible conectar con el backend para cargar el perfil academico.');
+  }
 
   const rawText = await response.text();
   let data: Record<string, unknown> = {};
