@@ -440,3 +440,42 @@
     height: auto;
   }
 }
+
+/* None tile specific styles */
+.none-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+.none-tile:hover {
+  opacity: 1;
+  color: #f87171; /* A reddish tone for "remove" */
+  border-color: #f87171;
+  border-style: solid;
+}
+
+.none-tile.active {
+  color: var(--primary);
+  opacity: 1;
+  border-style: solid;
+  border-color: var(--primary);
+}
+
+.none-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.none-content span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

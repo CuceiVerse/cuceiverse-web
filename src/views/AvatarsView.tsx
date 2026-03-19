@@ -1,4 +1,4 @@
-import { User, Info, Save } from "lucide-react";
+import { User, Info, Save, X } from "lucide-react";
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   buildFigureString,
@@ -426,6 +426,10 @@ export const AvatarsView: React.FC = () => {
     );
   }
 
+  function handleRemovePart() {
+    setParts((prev) => prev.filter((p) => p.type !== activeType));
+  }
+
   return (
     <div className="avatars-scroll-area">
       <div className="avatars-container animate-fade-in">
@@ -549,6 +553,18 @@ export const AvatarsView: React.FC = () => {
 
                   {/* Items grid */}
                   <div className="items-grid">
+                    {!activeSetType?.mandatory && activeType && (
+                      <button
+                        className={`item-tile glass-panel none-tile ${!activePart ? "active" : ""}`}
+                        onClick={handleRemovePart}
+                        title="Quitar ítem"
+                      >
+                        <div className="none-content">
+                          <X size={32} strokeWidth={1.5} />
+                          <span>Ninguno</span>
+                        </div>
+                      </button>
+                    )}
                     {activeSets.map((set) => {
                       const isActive = activePart?.setId === set.id;
                       const previewFigure = buildFigureString([

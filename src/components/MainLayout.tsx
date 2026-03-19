@@ -16,6 +16,7 @@ import {
 import { getMyProfile, type AuthUser } from '../features/auth/api/auth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
 import { CampusAssistantWidget } from '../features/assistant/components/CampusAssistantWidget';
+import { ConfirmModal } from './ConfirmModal';
 import './MainLayout.css';
 
 function resolveAvatarImage(avatarUrl: string | null): string | null {
@@ -48,6 +49,7 @@ export const MainLayout: React.FC = () => {
   const { state: offerState, resetAcademicOffer } = useAcademicOffer();
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -250,9 +252,12 @@ export const MainLayout: React.FC = () => {
             </section>
           )}
 
-          <button onClick={logout} className="logout-btn">
+          <button
+            onClick={() => setIsLogoutModalOpen(true)}
+            className="logout-btn"
+          >
             <LogOut size={18} />
-            <span>Salir</span>
+            <span>Cerrar Sesión</span>
           </button>
         </div>
       </nav>
@@ -263,6 +268,17 @@ export const MainLayout: React.FC = () => {
       </main>
 
       {location.pathname !== '/tramites' && <CampusAssistantWidget />}
+
+      <ConfirmModal
+        isOpen={isLogoutModalOpen}
+        title="Cerrar Sesión"
+        message="¿Estás seguro de que quieres cerrar sesión?"
+        onConfirm={() => {
+          setIsLogoutModalOpen(false);
+          logout();
+        }}
+        onCancel={() => setIsLogoutModalOpen(false)}
+      />
     </div>
   );
 };
