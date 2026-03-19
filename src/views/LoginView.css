@@ -284,29 +284,6 @@
   transform: none;
 }
 
-.admin-test-btn {
-  background: transparent;
-  color: #ffdca8;
-  border: 1px solid rgba(255, 220, 168, 0.45);
-  padding: 0.8rem;
-  border-radius: 0.75rem;
-  font-weight: 600;
-  font-size: 0.92rem;
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
-
-.admin-test-btn:hover {
-  background: rgba(255, 220, 168, 0.12);
-  border-color: rgba(255, 220, 168, 0.8);
-  color: #fff1d4;
-}
-
-.admin-test-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 .spinner {
   animation: spin 1s linear infinite;
 }

@@ -43,14 +43,6 @@ export const LoginView: React.FC = () => {
     await doLogin(codigo, nip);
   };
 
-  const handleAdminTestAccess = async () => {
-    const adminCodigo = "admin";
-    const adminNip = "admin123";
-    setCodigo(adminCodigo);
-    setNip(adminNip);
-    await doLogin(adminCodigo, adminNip);
-  };
-
   return (
     <div className="login-container">
       <ParticlesBackground />
@@ -110,15 +102,6 @@ export const LoginView: React.FC = () => {
                 <ArrowRight size={18} />
               </>
             )}
-          </button>
-
-          <button
-            type="button"
-            className="admin-test-btn"
-            disabled={isLoading}
-            onClick={() => void handleAdminTestAccess()}
-          >
-            Acceso Admin (Pruebas)
           </button>
         </form>
 
