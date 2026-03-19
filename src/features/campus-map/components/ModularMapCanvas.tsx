@@ -67,7 +67,7 @@ type Props = {
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
 const BUILDING_ELEVATION = 16;
-const MIN_ZOOM = 0.5;
+const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
 const DEVICE_PIXEL_RATIO = typeof window === 'undefined' ? 1 : Math.max(1, window.devicePixelRatio || 1);
 const TILE_2D_SIZE = 26;
@@ -526,7 +526,7 @@ export function ModularMapCanvas({
   };
 
   const handleMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (isSpacePressed && event.button === 0) {
+    if ((isSpacePressed || editorState.activeTool === 'pan') && event.button === 0) {
       panRef.current = {
         pointerX: event.clientX,
         pointerY: event.clientY,
@@ -577,7 +577,7 @@ export function ModularMapCanvas({
 
   const handleMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
     const pan = panRef.current;
-    if (pan && isSpacePressed && isPanning) {
+    if (pan && (isSpacePressed || editorState.activeTool === 'pan') && isPanning) {
       setCamera((current) => ({
         ...current,
         x: pan.cameraX + (event.clientX - pan.pointerX),
@@ -651,7 +651,7 @@ export function ModularMapCanvas({
   const selectedPropId = editorState.selection?.kind === 'prop' ? editorState.selection.id : null;
   const canvasCursorClass = isPanning
     ? 'modular-canvas-shell--grabbing'
-    : isSpacePressed
+    : (isSpacePressed || editorState.activeTool === 'pan')
       ? 'modular-canvas-shell--grab'
       : 'modular-canvas-shell--tool';
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Flag, MapPin } from 'lucide-react';
+import { ChevronDown, Flag, MapPin } from 'lucide-react';
 
 import { useAuth } from '../../../context/useAuth';
 import { fetchModularMapLayout } from '../api/mapaAdmin';
@@ -307,6 +307,7 @@ export function ModularReadOnlyMap() {
   const [routeError, setRouteError] = useState<string | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeNetwork, setRouteNetwork] = useState<'pasillos' | 'mixta'>('pasillos');
+  const [navOpen, setNavOpen] = useState(true);
 
   const statusLabel = useMemo(() => {
     const normalized = status.toLowerCase();
@@ -633,97 +634,127 @@ export function ModularReadOnlyMap() {
       </header>
 
       {/* --- PANEL DE NAVEGACIÓN --- */}
-      <section 
-        className="glass-panel space-y-3 rounded-[28px] border border-slate-700/50 bg-[#070E23]/95 text-slate-100 shadow-[0_20px_45px_rgba(2,6,23,0.45)]"
-        style={{ padding: '1rem 2rem' }} 
+      <section
+        className="glass-panel rounded-[28px] border border-slate-700/50 bg-[#070E23]/95 text-slate-100 shadow-[0_20px_45px_rgba(2,6,23,0.45)] overflow-hidden"
       >
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-1">
+        {/* Header always visible — click to toggle */}
+        <button
+          type="button"
+          onClick={() => setNavOpen((prev) => !prev)}
+          className="w-full flex items-center justify-between gap-4 text-left"
+          style={{ padding: '1rem 2rem' }}
+        >
+          <div className="space-y-0.5">
             <h2 className="text-lg font-bold tracking-wide bg-gradient-to-r from-cyan-200 to-cyan-400 bg-clip-text text-transparent">
               Navegación del Campus
             </h2>
-            <p className="text-[13px] text-slate-400">
-              Selecciona origen y destino para trazar una ruta caminable.
-            </p>
+            {!navOpen && (
+              <p className="text-[12px] text-slate-500">
+                Haz clic para desplegar y trazar una ruta.
+              </p>
+            )}
           </div>
-        </div>
+          <span
+            className="flex-none text-slate-400 transition-transform duration-300"
+            style={{ transform: navOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          >
+            <ChevronDown size={20} />
+          </span>
+        </button>
 
-        <div className="grid grid-cols-1 gap-4 items-end md:grid-cols-[1fr_1fr_auto]">
-          <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
-            Origen
-            <div className="relative">
-              <MapPin size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500/80 transition-colors group-focus-within:text-cyan-400" />
-              <select
-                className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 hover:bg-[#0e1a3a] focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
-                style={{ paddingLeft: '2.75rem' }}
-                value={originId}
-                onChange={(event) => { setOriginId(event.target.value); setRoutePath([]); setRouteTileCount(0); setRouteError(null); }}
-              >
-                {waypoints.length === 0 ? (
-                  <option value="">Sin puntos en el mapa</option>
-                ) : (
-                  waypoints.map((wp) => (
-                    <option key={wp.id} value={wp.id}>
-                      {wp.label}
-                    </option>
-                  ))
-                )}
-              </select>
+        {/* Collapsible body */}
+        <div
+          style={{
+            maxHeight: navOpen ? '600px' : '0px',
+            transition: 'max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
+            overflow: 'hidden',
+          }}
+        >
+          <div style={{ padding: '0 2rem 1.25rem' }} className="space-y-3">
+            {!navOpen ? null : (
+              <p className="text-[13px] text-slate-400">
+                Selecciona origen y destino para trazar una ruta caminable.
+              </p>
+            )}
+
+            <div className="grid grid-cols-1 gap-4 items-end md:grid-cols-[1fr_1fr_auto]">
+              <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
+                Origen
+                <div className="relative">
+                  <MapPin size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500/80 transition-colors group-focus-within:text-cyan-400" />
+                  <select
+                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 hover:bg-[#0e1a3a] focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                    style={{ paddingLeft: '2.75rem' }}
+                    value={originId}
+                    onChange={(event) => { setOriginId(event.target.value); setRoutePath([]); setRouteTileCount(0); setRouteError(null); }}
+                  >
+                    {waypoints.length === 0 ? (
+                      <option value="">Sin puntos en el mapa</option>
+                    ) : (
+                      waypoints.map((wp) => (
+                        <option key={wp.id} value={wp.id}>
+                          {wp.label}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </label>
+              <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
+                Destino
+                <div className="relative">
+                  <Flag size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/80 transition-colors group-focus-within:text-emerald-400" />
+                  <select
+                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 hover:bg-[#0e1a3a] focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
+                    style={{ paddingLeft: '2.75rem' }}
+                    value={destinationId}
+                    onChange={(event) => { setDestinationId(event.target.value); setRoutePath([]); setRouteTileCount(0); setRouteError(null); }}
+                  >
+                    {waypoints.length === 0 ? (
+                      <option value="">Sin puntos en el mapa</option>
+                    ) : (
+                      waypoints.map((wp) => (
+                        <option key={wp.id} value={wp.id}>
+                          {wp.label}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </label>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  className="h-11 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.5)] disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 disabled:shadow-none md:min-w-[170px]"
+                  disabled={!canRoute || routeLoading}
+                  onClick={handleComputeRoute}
+                >
+                  {routeLoading ? 'Calculando...' : 'Trazar ruta'}
+                </button>
+              </div>
             </div>
-          </label>
-          <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
-            Destino
-            <div className="relative">
-              <Flag size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/80 transition-colors group-focus-within:text-emerald-400" />
-              <select
-                className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 hover:bg-[#0e1a3a] focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
-                style={{ paddingLeft: '2.75rem' }}
-                value={destinationId}
-                onChange={(event) => { setDestinationId(event.target.value); setRoutePath([]); setRouteTileCount(0); setRouteError(null); }}
-              >
-                {waypoints.length === 0 ? (
-                  <option value="">Sin puntos en el mapa</option>
-                ) : (
-                  waypoints.map((wp) => (
-                    <option key={wp.id} value={wp.id}>
-                      {wp.label}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-          </label>
-          <div className="flex items-end">
-            <button
-              type="button"
-              className="h-11 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.5)] disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 disabled:shadow-none md:min-w-[170px]"
-              disabled={!canRoute || routeLoading}
-              onClick={handleComputeRoute}
-            >
-              {routeLoading ? 'Calculando...' : 'Trazar ruta'}
-            </button>
+
+            {routeError ? <p className="text-xs text-rose-400">{routeError}</p> : null}
+            {routePath.length > 0 ? (
+              <div className="rounded-xl border border-emerald-700/50 bg-emerald-950/30 p-4 space-y-1 text-sm">
+                <p className="font-semibold text-emerald-300">
+                  Ruta trazada — {routeTileCount} celdas ({routeNetwork === 'pasillos' ? 'solo pasillos' : 'pasillos + asfalto'})
+                </p>
+                <p className="text-slate-400 text-xs">
+                  {waypoints.find((w) => w.id === originId)?.label ?? originId}
+                  {' → '}
+                  {waypoints.find((w) => w.id === destinationId)?.label ?? destinationId}
+                </p>
+              </div>
+            ) : null}
           </div>
         </div>
-        
-        {routeError ? <p className="text-xs text-rose-400">{routeError}</p> : null}
-        {routePath.length > 0 ? (
-          <div className="rounded-xl border border-emerald-700/50 bg-emerald-950/30 p-4 space-y-1 text-sm">
-            <p className="font-semibold text-emerald-300">
-              Ruta trazada — {routeTileCount} celdas ({routeNetwork === 'pasillos' ? 'solo pasillos' : 'pasillos + asfalto'})
-            </p>
-            <p className="text-slate-400 text-xs">
-              {waypoints.find((w) => w.id === originId)?.label ?? originId}
-              {' → '}
-              {waypoints.find((w) => w.id === destinationId)?.label ?? destinationId}
-            </p>
-          </div>
-        ) : null}
       </section>
 
       {/* --- CONTENEDOR DEL MAPA ESTILIZADO CON VIÑETA MÁS SUAVE --- */}
       <div 
         className="relative mt-1 mb-12 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]" 
-        style={{ height: '500px' }} 
+        style={{ height: '620px' }} 
       >
         
         {/* Viñeta reducida: Menos spread y blur para que no invada los edificios */}

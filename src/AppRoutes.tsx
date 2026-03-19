@@ -8,6 +8,7 @@ import { AvatarsView } from './views/AvatarsView';
 import { StudentScheduleView } from './views/StudentScheduleView';
 import { AcademicProfileView } from './views/AcademicProfileView';
 import { MapEditorView } from './views/MapEditorView';
+import { TramitesView } from './views/TramitesView';
 import { MainLayout } from './components/MainLayout';
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -70,6 +71,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/schedule" element={<StudentScheduleView />} />
         <Route path="/profile-hud" element={<AcademicProfileView />} />
         <Route path="/avatars" element={<AvatarsView />} />
+        <Route path="/tramites" element={<TramitesView />} />
         <Route path="/" element={<Navigate to="/home" replace />} />
       </Route>
 

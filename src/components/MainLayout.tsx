@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import {
   LogOut,
@@ -11,6 +11,7 @@ import {
   GraduationCap,
   CalendarDays,
   Trophy,
+  FileText,
 } from 'lucide-react';
 import { getMyProfile, type AuthUser } from '../features/auth/api/auth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
@@ -47,6 +48,7 @@ export const MainLayout: React.FC = () => {
   const { state: offerState, resetAcademicOffer } = useAcademicOffer();
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const location = useLocation();
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -114,7 +116,7 @@ export const MainLayout: React.FC = () => {
         
         <div className="nav-links">
           <NavLink 
-            to="/" 
+            to="/home" 
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             end
           >
@@ -134,6 +136,13 @@ export const MainLayout: React.FC = () => {
           >
             <CalendarDays size={18} />
             <span>Horario</span>
+          </NavLink>
+          <NavLink
+            to="/tramites"
+            className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+          >
+            <FileText size={18} />
+            <span>Trámites</span>
           </NavLink>
           <NavLink
             to="/profile-hud"
@@ -253,7 +262,7 @@ export const MainLayout: React.FC = () => {
         <Outlet />
       </main>
 
-      <CampusAssistantWidget />
+      {location.pathname !== '/tramites' && <CampusAssistantWidget />}
     </div>
   );
 };

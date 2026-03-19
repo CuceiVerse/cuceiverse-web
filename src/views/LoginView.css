@@ -172,6 +172,7 @@
   font-weight: 700;
   letter-spacing: -0.025em;
   background: linear-gradient(to right, #fff, #a1a1aa);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -303,4 +304,45 @@
   color: var(--muted-foreground);
   font-size: 0.85rem;
   margin-top: 1rem;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 480px) {
+  .login-content {
+    padding: 1.25rem;
+    gap: 1.5rem;
+  }
+
+  .login-form {
+    padding: 1.75rem 1.25rem;
+    gap: 1.25rem;
+  }
+
+  .login-header h1 {
+    font-size: 1.75rem;
+  }
+
+  .logo-container {
+    width: 56px;
+    height: 56px;
+  }
+
+  .logo-container svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .input-wrapper input {
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    font-size: 0.9rem;
+  }
+
+  .input-icon {
+    left: 0.85rem;
+  }
+
+  .submit-btn {
+    padding: 0.75rem;
+    font-size: 0.9rem;
+  }
 }

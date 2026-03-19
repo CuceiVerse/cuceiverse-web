@@ -174,19 +174,67 @@
 
 @media (max-width: 920px) {
   .academic-profile-container {
-    padding: 1.25rem;
+    padding: 1rem;
+    gap: 1rem;
   }
 
   .academic-profile-header {
-    padding: 1rem 1.1rem;
+    padding: 1rem;
+  }
+
+  .title-wrap h1 {
+    font-size: 1.15rem;
   }
 
   .academic-profile-state {
-    padding: 0.95rem 1rem;
+    padding: 0.85rem;
+    gap: 0.6rem;
+  }
+
+  .academic-profile-state p {
+    flex: 1 1 100%;
+    font-size: 0.85rem;
+  }
+
+  .profile-sync-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 0.65rem;
   }
 
   .profile-loading-screen {
-    min-height: 160px;
-    padding: 1.5rem 1rem;
+    min-height: 140px;
+    padding: 1.25rem 0.75rem;
+  }
+
+  .profile-loading-content h2 {
+    font-size: 1.05rem;
+  }
+
+  .profile-loading-content p {
+    font-size: 0.85rem;
   }
 }
+
+@media (max-width: 480px) {
+  .academic-profile-container {
+    padding: 0.75rem;
+  }
+
+  .title-wrap {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  .profile-spinner-ring {
+    width: 44px;
+    height: 44px;
+  }
+
+  .profile-spinner-ring-inner {
+    width: 20px;
+    height: 20px;
+  }
+}
+

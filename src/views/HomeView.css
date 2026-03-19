@@ -55,9 +55,24 @@
   .modular-read-header {
     flex-direction: column;
     align-items: flex-start;
+    padding: 1rem;
   }
 
   .modular-read-canvas .modular-canvas-shell {
-    min-height: 560px;
+    min-height: 500px;
   }
 }
+
+@media (max-width: 600px) {
+  .modular-read-canvas {
+    padding: 0.25rem;
+  }
+  
+  .modular-read-header h1 {
+    font-size: 1.25rem;
+  }
+
+  .modular-read-canvas .modular-canvas-shell {
+    min-height: 400px;
+  }
+}

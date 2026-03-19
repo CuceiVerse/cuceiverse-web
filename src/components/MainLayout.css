@@ -289,3 +289,89 @@
   flex-direction: column;
   position: relative;
 }
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0.75rem 1rem;
+    height: 60px;
+  }
+
+  .nav-brand h2, .user-badge, .logout-btn span {
+    display: none;
+  }
+
+  .nav-brand {
+    gap: 0.5rem;
+  }
+
+  .nav-links {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background: rgba(9, 9, 11, 0.9);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.5rem 0.25rem;
+    justify-content: space-around;
+    gap: 0;
+    z-index: 100;
+  }
+
+  .nav-link {
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.4rem 0.2rem;
+    font-size: 0.65rem;
+    border-radius: 0.5rem;
+    min-width: 60px;
+    text-align: center;
+  }
+
+  .nav-link span {
+    font-size: 10px;
+    white-space: nowrap;
+    max-width: 65px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .nav-link svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .nav-actions {
+    gap: 0.75rem;
+  }
+
+  .logout-btn {
+    padding: 0.5rem;
+  }
+
+  .siiau-user-menu {
+    right: 1rem;
+    bottom: 70px;
+    top: auto;
+    width: calc(100vw - 2rem);
+    max-height: 70vh;
+  }
+
+  .layout-content {
+    padding-bottom: 70px; /* Space for fixed bottom nav */
+  }
+}
+
+@media (max-width: 480px) {
+  .nav-link span {
+    display: none; /* Only icons on very small screens */
+  }
+
+  .nav-link {
+    min-width: auto;
+    flex: 1;
+  }
+}
+
