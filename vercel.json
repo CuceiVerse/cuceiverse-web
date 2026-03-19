@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/habbo-api/(.*)", "destination": "https://cuceiverse-avatar-service-cu0w.onrender.com/api/$1" },
     { "source": "/favicon.ico", "destination": "/vite.svg" },
     { "source": "/(.*)", "destination": "/" }
   ]
