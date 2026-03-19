@@ -296,6 +296,7 @@ export function ModularReadOnlyMap() {
   const { token } = useAuth();
   const [layout, setLayout] = useState<ModularMapSeed>(fallbackSeed);
   const [status, setStatus] = useState('Cargando mapa modular...');
+  const [isSyncing, setIsSyncing] = useState(true);
   const [viewMode, setViewMode] = useState<'isometric' | '2d'>(getInitialViewMode);
   const [dbPois, setDbPois] = useState<PuntoInteres[]>([]);
   const [originId, setOriginId] = useState('');
@@ -319,11 +320,13 @@ export function ModularReadOnlyMap() {
     if (!token) {
       setStatus('Sin token, mostrando seed local.');
       setLayout(fallbackSeed);
+      setIsSyncing(false);
       return;
     }
 
     let cancelled = false;
     setStatus('Cargando mapa modular...');
+    setIsSyncing(true);
 
     fetchModularMapLayout(token, fallbackSeed.mapId)
       .then((response) => {
@@ -339,12 +342,17 @@ export function ModularReadOnlyMap() {
         }
         setLayout(fallbackSeed);
         setStatus('No se pudo cargar layout remoto, usando seed local.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsSyncing(false);
+        }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, fallbackSeed]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -729,6 +737,14 @@ export function ModularReadOnlyMap() {
         <div className="pointer-events-none absolute inset-0 z-10 shadow-[inset_0_0_40px_15px_#030610]" />
         
         <div className="relative z-0 h-full w-full">
+          {isSyncing ? (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#030610]/80 backdrop-blur-md">
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-cyan-500/20 border-t-cyan-400" />
+                <p className="text-sm font-bold tracking-widest text-cyan-400 uppercase">Sincronizando satélite...</p>
+              </div>
+            </div>
+          ) : null}
           <ModularMapCanvas
             editorState={viewerState}
             onDropPaletteItem={() => undefined}

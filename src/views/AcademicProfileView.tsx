@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { AlertCircle, Sparkles, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -13,34 +13,14 @@ import './AcademicProfileView.css';
 export const AcademicProfileView: React.FC = () => {
   const { token } = useAuth();
   const { state: offerState, loadAcademicOffer } = useAcademicOffer();
-  const autoSyncAttemptedRef = useRef(false);
-  const syncedTokenRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    autoSyncAttemptedRef.current = false;
-    if (!token) {
-      syncedTokenRef.current = null;
-    }
-  }, [token]);
 
   useEffect(() => {
     if (!token) return;
     if (offerState.status === 'loading') return;
-
-    const tokenChanged = syncedTokenRef.current !== token;
-    const shouldForceSync =
-      tokenChanged ||
-      offerState.status === 'idle' ||
-      offerState.status === 'error' ||
-      (offerState.status === 'ready' && (!offerState.snapshot || !offerState.snapshot.profile));
-
-    if (!shouldForceSync || autoSyncAttemptedRef.current) return;
-
-    autoSyncAttemptedRef.current = true;
-    syncedTokenRef.current = token;
+    if (offerState.status === 'ready' && offerState.snapshot?.profile) return;
 
     void loadAcademicOffer(token, {
-      force: true,
+      force: offerState.status === 'ready' && !offerState.snapshot?.profile,
       offerRecords: mockData as AcademicOfferRecord[],
     });
   }, [token, offerState.status, offerState.snapshot, loadAcademicOffer]);

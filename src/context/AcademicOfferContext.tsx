@@ -15,7 +15,7 @@ import {
 } from './AcademicOfferContextStore';
 
 const POLL_INTERVAL_MS = 1500;
-const MAX_POLL_ATTEMPTS = 30;
+const MAX_POLL_ATTEMPTS = 50;
 
 function shortToken(token: string | null): string {
   if (!token) return 'null';
@@ -294,6 +294,13 @@ export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
     },
     [state.offerRecords, state.status],
   );
+
+  useEffect(() => {
+    if (authToken && state.status === 'idle') {
+      // Proactive background fetch as soon as user logs in Component
+      void loadAcademicOffer(authToken, { force: false });
+    }
+  }, [authToken, state.status, loadAcademicOffer]);
 
   const value = useMemo(
     () => ({

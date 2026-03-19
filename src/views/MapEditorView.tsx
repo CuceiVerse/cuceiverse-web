@@ -100,6 +100,7 @@ export function MapEditorView() {
   const [savingLayout, setSavingLayout] = useState(false);
   const [viewMode, setViewMode] = useState<'isometric' | '2d'>(getInitialViewMode);
   const [runtimeSeedSaved, setRuntimeSeedSaved] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(true);
 
   const payload = useMemo(
     () => serializeForSave(),
@@ -138,11 +139,13 @@ export function MapEditorView() {
   useEffect(() => {
     if (!token) {
       setLoadingLayout(false);
+      setIsSyncing(false);
       return;
     }
 
     let cancelled = false;
     setLoadingLayout(true);
+    setIsSyncing(true);
 
     fetchModularMapLayout(token, modularSeed.mapId)
       .then((response) => {
@@ -166,13 +169,14 @@ export function MapEditorView() {
       .finally(() => {
         if (!cancelled) {
           setLoadingLayout(false);
+          setIsSyncing(false);
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, [hydrateFromSeed, token]);
+  }, [hydrateFromSeed, token, modularSeed]);
 
   const handleDropPaletteItem = (dragPayload: DragPalettePayload, cell: GridCell) => {
     if (dragPayload.kind === 'area-block') {
@@ -429,6 +433,14 @@ export function MapEditorView() {
         </div>
 
         <div className="map-editor-canvas-layer absolute inset-0 z-0">
+          {isSyncing ? (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-md">
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-500/20 border-t-amber-400" />
+                <p className="text-sm font-bold tracking-widest text-amber-400 uppercase">Sincronizando editor...</p>
+              </div>
+            </div>
+          ) : null}
           <ModularMapCanvas
             editorState={editorState}
             onDropPaletteItem={handleDropPaletteItem}
