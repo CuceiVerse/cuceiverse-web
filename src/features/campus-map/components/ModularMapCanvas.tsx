@@ -63,6 +63,12 @@ type Props = {
   routePolyline?: Array<{ x: number; y: number }>;
   /** Polilíneas de rutas alternativas (coordenadas de grid). */
   altPolylines?: Array<Array<{ x: number; y: number }>>;
+  /** Callback when the user left-clicks a cell in pan/viewer mode. */
+  onCellClick?: (cell: GridCell) => void;
+  /** Avatar position in fractional grid coordinates (e.g. {x:24.5, y:20.5}). */
+  avatarPosition?: { x: number; y: number };
+  /** Avatar Habbo image URL (optional, falls back to a colored circle). */
+  avatarImageUrl?: string;
 };
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
@@ -339,6 +345,9 @@ export function ModularMapCanvas({
   viewMode = 'isometric',
   routePolyline = [],
   altPolylines = [],
+  onCellClick,
+  avatarPosition,
+  avatarImageUrl,
 }: Props) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const panRef = useRef<{
@@ -351,6 +360,8 @@ export function ModularMapCanvas({
   const brushActiveRef = useRef(false);
   const eraseActiveRef = useRef(false);
   const lastEraseCellKeyRef = useRef<string | null>(null);
+  // Used to distinguish a click (no drag) from a pan drag in pan mode
+  const panStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const [camera, setCamera] = useState<EditorCamera>(() => ({
     ...fitCameraToBounds(
@@ -533,6 +544,7 @@ export function ModularMapCanvas({
         cameraX: camera.x,
         cameraY: camera.y,
       };
+      panStartPosRef.current = { x: event.clientX, y: event.clientY };
       setIsPanning(true);
       return;
     }
@@ -609,7 +621,7 @@ export function ModularMapCanvas({
     }
   };
 
-  const finishInteraction = () => {
+  const finishInteraction = (event?: ReactMouseEvent<HTMLDivElement>) => {
     if (brushActiveRef.current) {
       brushActiveRef.current = false;
       onPathBrushEnd();
@@ -619,6 +631,21 @@ export function ModularMapCanvas({
       lastEraseCellKeyRef.current = null;
       onEraseEnd();
     }
+    // If we were in pan mode and barely moved (i.e. a click), fire onCellClick
+    if (
+      onCellClick &&
+      event &&
+      (isSpacePressed || editorState.activeTool === 'pan') &&
+      panStartPosRef.current
+    ) {
+      const dx = event.clientX - panStartPosRef.current.x;
+      const dy = event.clientY - panStartPosRef.current.y;
+      if (Math.hypot(dx, dy) < 6) {
+        const cell = toGridCell(event, event.currentTarget);
+        onCellClick(cell);
+      }
+    }
+    panStartPosRef.current = null;
     propDragRef.current = null;
     setIsPanning(false);
     panRef.current = null;
@@ -655,10 +682,23 @@ export function ModularMapCanvas({
       ? 'modular-canvas-shell--grab'
       : 'modular-canvas-shell--tool';
 
+  // Compute avatar screen position from fractional grid coords + camera
+  const avatarScreenPos = (() => {
+    if (!avatarPosition) return null;
+    const world = viewMode === '2d'
+      ? { x: avatarPosition.x * TILE_2D_SIZE, y: avatarPosition.y * TILE_2D_SIZE }
+      : isoGridToScreen(avatarPosition, editorState.grid);
+    return {
+      x: world.x * camera.scale + camera.x,
+      y: world.y * camera.scale + camera.y,
+    };
+  })();
+
   return (
     <div
       ref={viewportRef}
       className={`modular-canvas-shell ${canvasCursorClass}`}
+      style={{ position: 'relative' }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={finishInteraction}
@@ -1190,6 +1230,57 @@ export function ModularMapCanvas({
           })}
         </pixiContainer>
       </Application>
+
+      {/* ── Avatar HTML Overlay ──────────────────────────────────────── */}
+      {avatarScreenPos && (
+        <div
+          style={{
+            position: 'absolute',
+            left: avatarScreenPos.x,
+            top: avatarScreenPos.y,
+            transform: 'translate(-50%, -100%)',
+            pointerEvents: 'none',
+            zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          {avatarImageUrl ? (
+            <img
+              src={avatarImageUrl}
+              alt="Avatar"
+              style={{
+                imageRendering: 'pixelated',
+                width: 46,
+                height: 'auto',
+                filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.7))',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle at 35% 35%, #67e8f9, #0891b2)',
+                border: '2.5px solid white',
+                boxShadow: '0 0 0 3px rgba(8,145,178,0.35), 0 3px 10px rgba(0,0,0,0.5)',
+              }}
+            />
+          )}
+          {/* Walk destination pulse dot */}
+          <div
+            style={{
+              width: 6,
+              height: 3,
+              borderRadius: '50%',
+              background: 'rgba(8,145,178,0.4)',
+              marginTop: 1,
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

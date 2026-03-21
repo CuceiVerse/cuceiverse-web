@@ -22,7 +22,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   return (
     <div className="modal-overlay" onClick={onCancel}>
       <div 
-        className="modal-content glass-panel animate-fade-in" 
+        className="modal-content confirm-modal glass-panel animate-fade-in" 
         onClick={(e) => e.stopPropagation()}
       >
         <button className="modal-close" onClick={onCancel} aria-label="Cerrar">

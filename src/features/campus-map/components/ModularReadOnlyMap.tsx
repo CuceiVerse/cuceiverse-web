@@ -8,6 +8,8 @@ import campusModularSeed from '../data/campusModularSeed.json';
 import { cellKey, expandBlockCells } from '../editor/buildingAdjacency';
 import { gridAStarPath, snapToPathTile } from '../lib/gridAStar';
 import { loadRuntimeSeed } from '../lib/runtimeSeed';
+import { useAvatarWalk } from '../hooks/useAvatarWalk';
+import { getMyProfile } from '../../../features/auth/api/auth';
 import { ModularMapCanvas } from './ModularMapCanvas';
 import type { PuntoInteres } from '../types';
 import type {
@@ -299,6 +301,7 @@ export function ModularReadOnlyMap() {
   const [isSyncing, setIsSyncing] = useState(true);
   const [viewMode, setViewMode] = useState<'isometric' | '2d'>(getInitialViewMode);
   const [dbPois, setDbPois] = useState<PuntoInteres[]>([]);
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [originId, setOriginId] = useState('');
   const [destinationId, setDestinationId] = useState('');
   /** Ruta visual (puede incluir puntos fraccionales para centro de POI). */
@@ -376,6 +379,16 @@ export function ModularReadOnlyMap() {
     };
   }, []);
 
+  // Load user avatar from profile
+  useEffect(() => {
+    if (!token) { setUserAvatarUrl(null); return; }
+    let cancelled = false;
+    getMyProfile(token)
+      .then((me) => { if (!cancelled) setUserAvatarUrl(me.avatarUrl ?? null); })
+      .catch(() => { if (!cancelled) setUserAvatarUrl(null); });
+    return () => { cancelled = true; };
+  }, [token]);
+
   const viewerState = useMemo(() => toViewerState(layout), [layout]);
 
   // ── Waypoints unificados: POI props del mapa + edificios + POIs de BD ───────
@@ -427,6 +440,30 @@ export function ModularReadOnlyMap() {
     () => new Set(Object.keys(viewerState.pathsByCell)),
     [viewerState.pathsByCell],
   );
+
+  // ── Avatar on map (needs pathCellsSet) ──────────────────────────────
+  const { position: avatarGridPos, walk: walkAvatar, habboDirection, walkFrame, isMoving: avatarIsMoving } = useAvatarWalk(pathCellsSet);
+
+  // Build a direction-aware Habbo sprite URL
+  const habboAvatarUrl = useMemo(() => {
+    if (!userAvatarUrl) return undefined;
+    const trimmed = userAvatarUrl.trim();
+    // Only figure strings (e.g. "hd-180-1.ch-215-62") are valid — skip plain URLs
+    if (!trimmed || trimmed.startsWith('http') || trimmed.startsWith('/')) return undefined;
+    if (!trimmed.includes('.') || !trimmed.includes('-')) return undefined;
+
+    const params = new URLSearchParams({
+      figure: trimmed,
+      size: 'n',                                        // normal size sprite
+      direction: String(habboDirection),                // 0-7 Habbo direction
+      head_direction: String(habboDirection),
+      action: avatarIsMoving ? 'wlk' : 'std',          // walking or idle pose
+      gesture: 'std',
+      frame_num: String(walkFrame),                    // cycle frames 0-3
+      img_format: 'png',
+    });
+    return `/habbo-api/render?${params.toString()}`;
+  }, [userAvatarUrl, habboDirection, walkFrame, avatarIsMoving]);
 
   // El asfalto puede funcionar como fallback de tránsito cuando no hay conexión por pasillos.
   const asphaltCellsSet = useMemo(() => {
@@ -783,6 +820,9 @@ export function ModularReadOnlyMap() {
             onPlaceProp={() => undefined}
             viewMode={viewMode}
             routePolyline={routePath}
+            onCellClick={walkAvatar}
+            avatarPosition={avatarGridPos}
+            avatarImageUrl={habboAvatarUrl}
           />
         </div>
       </div>

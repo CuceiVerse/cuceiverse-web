@@ -327,7 +327,7 @@ export const SubjectsView: React.FC = () => {
       {/* Modal View for Subject Details */}
       {selectedSubject && createPortal(
         <div className="modal-overlay animate-fade-in" onClick={() => setSelectedSubject(null)}>
-          <div className="modal-content glass-panel animate-slide-up" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content subjects-modal glass-panel animate-slide-up" onClick={(e) => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setSelectedSubject(null)}>
               <X size={24} />
             </button>
