@@ -28,8 +28,10 @@ type MapWaypoint = {
   id: string;
   label: string;
   cell: GridCell;
-  kind: 'poi-prop' | 'building' | 'poi-db';
+  kind: 'poi-prop' | 'building' | 'poi-db' | 'avatar';
 };
+
+const AVATAR_ORIGIN_ID = 'avatar::current';
 
 type AssistantRouteEventDetail = {
   type?: 'highlight-route';
@@ -570,7 +572,18 @@ export function ModularReadOnlyMap() {
   }
 
   function handleComputeRoute() {
-    const origin = waypoints.find((w) => w.id === originId);
+    const origin =
+      originId === AVATAR_ORIGIN_ID
+        ? {
+            id: AVATAR_ORIGIN_ID,
+            label: 'Mi ubicación actual',
+            cell: {
+              x: Math.floor(avatarGridPos.x),
+              y: Math.floor(avatarGridPos.y),
+            },
+            kind: 'avatar' as const,
+          }
+        : waypoints.find((w) => w.id === originId);
     const dest = waypoints.find((w) => w.id === destinationId);
     if (!origin || !dest) {
       setRouteError('Selecciona origen y destino.');
@@ -578,6 +591,11 @@ export function ModularReadOnlyMap() {
     }
     computeRouteForWaypoints(origin, dest);
   }
+
+  const originLabel = originId === AVATAR_ORIGIN_ID
+    ? 'Mi ubicación actual'
+    : waypoints.find((w) => w.id === originId)?.label ?? originId;
+  const destinationLabel = waypoints.find((w) => w.id === destinationId)?.label ?? destinationId;
 
   useEffect(() => {
     const onAssistantRoute = (event: Event) => {
@@ -738,11 +756,14 @@ export function ModularReadOnlyMap() {
                     {waypoints.length === 0 ? (
                       <option value="">Sin puntos en el mapa</option>
                     ) : (
-                      waypoints.map((wp) => (
-                        <option key={wp.id} value={wp.id}>
-                          {wp.label}
-                        </option>
-                      ))
+                      <>
+                        <option value={AVATAR_ORIGIN_ID}>Mi ubicación actual</option>
+                        {waypoints.map((wp) => (
+                          <option key={wp.id} value={wp.id}>
+                            {wp.label}
+                          </option>
+                        ))}
+                      </>
                     )}
                   </select>
                 </div>
@@ -788,9 +809,9 @@ export function ModularReadOnlyMap() {
                   Ruta trazada — {routeTileCount} celdas ({routeNetwork === 'pasillos' ? 'solo pasillos' : 'pasillos + asfalto'})
                 </p>
                 <p className="text-slate-400 text-xs">
-                  {waypoints.find((w) => w.id === originId)?.label ?? originId}
+                  {originLabel}
                   {' → '}
-                  {waypoints.find((w) => w.id === destinationId)?.label ?? destinationId}
+                  {destinationLabel}
                 </p>
               </div>
             ) : null}

@@ -75,6 +75,9 @@ const DROP_MIME = 'application/x-cuceiverse-map-item';
 const BUILDING_ELEVATION = 16;
 const MIN_ZOOM = 0.15;
 const MAX_ZOOM = 3;
+
+const AVATAR_BUBBLE_ZOOM_THRESHOLD = 0.45;
+const AVATAR_BUBBLE_SIZE_PX = 44;
 const DEVICE_PIXEL_RATIO = typeof window === 'undefined' ? 1 : Math.max(1, window.devicePixelRatio || 1);
 const TILE_2D_SIZE = 26;
 
@@ -694,6 +697,14 @@ export function ModularMapCanvas({
     };
   })();
 
+  const avatarCellSizePx = Math.max(
+    1,
+    Math.round(
+      (viewMode === '2d' ? TILE_2D_SIZE : editorState.grid.tileHeight) * camera.scale,
+    ),
+  );
+  const showAvatarBubble = Boolean(avatarScreenPos) && camera.scale <= AVATAR_BUBBLE_ZOOM_THRESHOLD;
+
   return (
     <div
       ref={viewportRef}
@@ -1246,39 +1257,83 @@ export function ModularMapCanvas({
             alignItems: 'center',
           }}
         >
-          {avatarImageUrl ? (
-            <img
-              src={avatarImageUrl}
-              alt="Avatar"
-              style={{
-                imageRendering: 'pixelated',
-                width: 46,
-                height: 'auto',
-                filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.7))',
-              }}
-            />
-          ) : (
+          {showAvatarBubble ? (
             <div
               style={{
-                width: 18,
-                height: 18,
-                borderRadius: '50%',
-                background: 'radial-gradient(circle at 35% 35%, #67e8f9, #0891b2)',
-                border: '2.5px solid white',
-                boxShadow: '0 0 0 3px rgba(8,145,178,0.35), 0 3px 10px rgba(0,0,0,0.5)',
+                width: AVATAR_BUBBLE_SIZE_PX,
+                height: AVATAR_BUBBLE_SIZE_PX,
+                borderRadius: 999,
+                background: 'rgba(255,255,255,0.92)',
+                border: '2px solid rgba(255,255,255,0.95)',
+                boxShadow: '0 8px 18px rgba(0,0,0,0.45)',
+                marginBottom: 6,
+                overflow: 'hidden',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
-            />
-          )}
-          {/* Walk destination pulse dot */}
+            >
+              {avatarImageUrl ? (
+                <img
+                  src={avatarImageUrl}
+                  alt="Avatar"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    imageRendering: 'pixelated',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: 999,
+                    background: 'radial-gradient(circle at 35% 35%, #67e8f9, #0891b2)',
+                    boxShadow: 'inset 0 0 0 3px rgba(255,255,255,0.8)',
+                  }}
+                />
+              )}
+            </div>
+          ) : null}
+
           <div
             style={{
-              width: 6,
-              height: 3,
-              borderRadius: '50%',
-              background: 'rgba(8,145,178,0.4)',
-              marginTop: 1,
+              width: avatarCellSizePx,
+              height: avatarCellSizePx,
+              borderRadius: 6,
+              overflow: 'hidden',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.45)',
+              background: avatarImageUrl ? 'rgba(255,255,255,0.08)' : 'transparent',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
-          />
+          >
+            {avatarImageUrl ? (
+              <img
+                src={avatarImageUrl}
+                alt="Avatar"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  imageRendering: 'pixelated',
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  borderRadius: 6,
+                  background: 'radial-gradient(circle at 35% 35%, #67e8f9, #0891b2)',
+                  boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.85)',
+                }}
+              />
+            )}
+          </div>
         </div>
       )}
     </div>
