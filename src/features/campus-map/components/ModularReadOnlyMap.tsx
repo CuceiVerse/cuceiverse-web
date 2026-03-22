@@ -615,99 +615,91 @@ export function ModularReadOnlyMap() {
   }, [waypoints, originId, pathCellsSet, traversableWithAsphaltSet]);
 
   return (
-    <section className="modular-read-shell flex flex-col gap-4">
-      {/* --- ENCABEZADO --- */}
-      <header 
-        className="relative flex flex-wrap items-center justify-between gap-6 rounded-[28px] border border-slate-700/50 bg-[#070E23]/95 shadow-[0_20px_45px_rgba(2,6,23,0.45)] overflow-hidden"
-        style={{ padding: '1rem 2rem' }} 
-      >
+    <section className="modular-read-shell h-full flex flex-col p-6 gap-4 overflow-hidden">
+      {/* --- ENCABEZADO Y PANEL DE NAVEGACIÓN COMBINADOS --- */}
+      <section className="glass-panel relative flex flex-col rounded-[28px] border border-slate-700/50 bg-[#070E23]/95 shadow-[0_20px_45px_rgba(2,6,23,0.45)] overflow-hidden">
+        {/* Decorative background blur */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -left-10 top-0 h-40 w-40 rounded-full bg-cyan-500/10 blur-[50px]" />
         </div>
 
-        <div className="relative z-10 flex flex-col gap-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-cyan-400/90">
-            CUCEIverse
-          </p>
-          <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl">
-            Mapa modular del campus
-          </h1>
-        </div>
-
-        <div className="relative z-10 flex flex-wrap items-center gap-4">
-          <span 
-            className="flex items-center gap-2.5 rounded-full border border-slate-700/60 bg-[#0c1631] px-4 py-2 text-[12px] font-medium text-slate-300 shadow-sm" 
-            title={statusLabel}
-          >
-            <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
-            {statusLabel}
-          </span>
-
-          <div className="inline-flex items-center rounded-full border border-slate-600/50 bg-slate-900/80 p-1 shadow-inner">
-            <button
-              type="button"
-              className={`min-w-[100px] rounded-full px-3 py-2 text-xs font-bold transition-all ${
-                viewMode === 'isometric' 
-                  ? 'bg-cyan-500 text-cyan-950 shadow-[0_0_15px_rgba(34,211,238,0.4)]' 
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-              onClick={() => setViewMode('isometric')}
-            >
-              Isométrica
-            </button>
-            <button
-              type="button"
-              className={`min-w-[72px] rounded-full px-3 py-2 text-xs font-bold transition-all ${
-                viewMode === '2d' 
-                  ? 'bg-emerald-500 text-emerald-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]' 
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
-              }`}
-              onClick={() => setViewMode('2d')}
-            >
-              2D
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* --- PANEL DE NAVEGACIÓN --- */}
-      <section
-        className="glass-panel rounded-[28px] border border-slate-700/50 bg-[#070E23]/95 text-slate-100 shadow-[0_20px_45px_rgba(2,6,23,0.45)] overflow-hidden"
-      >
-        {/* Header always visible — click to toggle */}
-        <button
-          type="button"
-          onClick={() => setNavOpen((prev) => !prev)}
-          className="w-full flex items-center justify-between gap-4 text-left"
-          style={{ padding: '1rem 2rem' }}
+        {/* --- ALWAYS VISIBLE HEADER --- */}
+        <div 
+          className="relative z-10 flex flex-wrap items-center justify-between gap-6"
+          style={{ padding: '1.25rem 2rem' }}
         >
-          <div className="space-y-0.5">
-            <h2 className="text-lg font-bold tracking-wide bg-gradient-to-r from-cyan-200 to-cyan-400 bg-clip-text text-transparent">
-              Navegación del Campus
-            </h2>
-            {!navOpen && (
-              <p className="text-[12px] text-slate-500">
-                Haz clic para desplegar y trazar una ruta.
-              </p>
-            )}
-          </div>
-          <span
-            className="flex-none text-slate-400 transition-transform duration-300"
-            style={{ transform: navOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          {/* Clickable Title Area to toggle Navigation */}
+          <button
+            type="button"
+            onClick={() => setNavOpen((prev) => !prev)}
+            className="group flex flex-col gap-1 text-left transition-opacity hover:opacity-90"
+            title="Desplegar/Ocultar controles de navegación"
           >
-            <ChevronDown size={20} />
-          </span>
-        </button>
+            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-cyan-400/90 flex items-center gap-2">
+              CUCEIverse
+              <span className="text-[10px] lowercase tracking-normal text-slate-500 font-normal">
+                {navOpen ? '(Ocultar navegación)' : '(Mostrar navegación)'}
+              </span>
+            </p>
+            <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl flex items-center gap-3">
+              Mapa modular del campus
+              <span 
+                className="flex-none text-slate-400 transition-transform duration-300 group-hover:text-cyan-400"
+                style={{ transform: navOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              >
+                <ChevronDown size={22} />
+              </span>
+            </h1>
+          </button>
 
-        {/* Collapsible body */}
+          {/* Controls Area (Status & View Toggle) */}
+          <div className="flex flex-wrap items-center gap-4">
+            <span 
+              className="flex items-center gap-2.5 rounded-full border border-slate-700/60 bg-[#0c1631] px-4 py-2 text-[12px] font-medium text-slate-300 shadow-sm" 
+              title={statusLabel}
+            >
+              <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+              {statusLabel}
+            </span>
+
+            <div className="inline-flex items-center rounded-full border border-slate-600/50 bg-slate-900/80 p-1 shadow-inner">
+              <button
+                type="button"
+                className={`min-w-[100px] rounded-full px-3 py-2 text-xs font-bold transition-all ${
+                  viewMode === 'isometric' 
+                    ? 'bg-cyan-500 text-cyan-950 shadow-[0_0_15px_rgba(34,211,238,0.4)]' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+                onClick={() => setViewMode('isometric')}
+              >
+                Isométrica
+              </button>
+              <button
+                type="button"
+                className={`min-w-[72px] rounded-full px-3 py-2 text-xs font-bold transition-all ${
+                  viewMode === '2d' 
+                    ? 'bg-emerald-500 text-emerald-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]' 
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                }`}
+                onClick={() => setViewMode('2d')}
+              >
+                2D
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* --- COLLAPSIBLE NAVIGATION BODY --- */}
         <div
           style={{
             maxHeight: navOpen ? '600px' : '0px',
             transition: 'max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
             overflow: 'hidden',
           }}
+          className="relative z-10"
         >
-          <div style={{ padding: '0 2rem 1.25rem' }} className="space-y-3">
+          {/* Inner padding for formatting the dropdown content */}
+          <div className="border-t border-slate-700/50 px-8 py-5 space-y-4">
             {!navOpen ? null : (
               <p className="text-[13px] text-slate-400">
                 Selecciona origen y destino para trazar una ruta caminable.
@@ -773,7 +765,7 @@ export function ModularReadOnlyMap() {
 
             {routeError ? <p className="text-xs text-rose-400">{routeError}</p> : null}
             {routePath.length > 0 ? (
-              <div className="rounded-xl border border-emerald-700/50 bg-emerald-950/30 p-4 space-y-1 text-sm">
+              <div className="rounded-xl border border-emerald-700/50 bg-emerald-950/30 p-4 space-y-1 text-sm mt-4">
                 <p className="font-semibold text-emerald-300">
                   Ruta trazada — {routeTileCount} celdas ({routeNetwork === 'pasillos' ? 'solo pasillos' : 'pasillos + asfalto'})
                 </p>
@@ -788,10 +780,10 @@ export function ModularReadOnlyMap() {
         </div>
       </section>
 
+
       {/* --- CONTENEDOR DEL MAPA ESTILIZADO CON VIÑETA MÁS SUAVE --- */}
       <div 
-        className="relative mt-1 mb-12 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]" 
-        style={{ height: '620px' }} 
+        className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]" 
       >
         
         {/* Viñeta reducida: Menos spread y blur para que no invada los edificios */}
