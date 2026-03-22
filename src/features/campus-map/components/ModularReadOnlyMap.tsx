@@ -435,11 +435,25 @@ export function ModularReadOnlyMap() {
     if (waypoints.length > 1 && !destinationId) setDestinationId(waypoints[1].id);
   }, [waypoints, originId, destinationId]);
 
-  // Set de celdas de pasillo para el A*
-  const pathCellsSet = useMemo(
-    () => new Set(Object.keys(viewerState.pathsByCell)),
-    [viewerState.pathsByCell],
-  );
+  // Celdas ocupadas por edificios (colisión)
+  const buildingOccupiedCellsSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const building of Object.values(viewerState.buildingsById)) {
+      for (const cell of building.occupiedCells) {
+        set.add(cellKey(cell));
+      }
+    }
+    return set;
+  }, [viewerState.buildingsById]);
+
+  // Set de celdas de pasillo para el A* (excluye edificios)
+  const pathCellsSet = useMemo(() => {
+    const set = new Set(Object.keys(viewerState.pathsByCell));
+    for (const blocked of buildingOccupiedCellsSet) {
+      set.delete(blocked);
+    }
+    return set;
+  }, [viewerState.pathsByCell, buildingOccupiedCellsSet]);
 
   // ── Avatar on map (needs pathCellsSet) ──────────────────────────────
   const { position: avatarGridPos, walk: walkAvatar, habboDirection, walkFrame, isMoving: avatarIsMoving } = useAvatarWalk(pathCellsSet);
@@ -481,8 +495,12 @@ export function ModularReadOnlyMap() {
     for (const key of asphaltCellsSet) {
       merged.add(key);
     }
+    // Los edificios bloquean tránsito incluso sobre asfalto/pasillos
+    for (const blocked of buildingOccupiedCellsSet) {
+      merged.delete(blocked);
+    }
     return merged;
-  }, [pathCellsSet, asphaltCellsSet]);
+  }, [pathCellsSet, asphaltCellsSet, buildingOccupiedCellsSet]);
 
   const canRoute = originId !== '' && destinationId !== '' && originId !== destinationId;
 
