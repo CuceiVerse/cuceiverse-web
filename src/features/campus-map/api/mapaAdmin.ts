@@ -59,9 +59,9 @@ export type ModularLayoutResponse = {
   ok: true;
   data: ModularMapSeed;
   meta: {
-    source: 'filesystem';
+    source: 'filesystem' | 'db';
     savedAt: string;
-    path: string;
+    path?: string;
   };
 };
 

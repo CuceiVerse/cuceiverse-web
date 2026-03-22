@@ -255,12 +255,37 @@ export function MapEditorView() {
     setMessage('Estado restaurado desde el seed modular base.');
   };
 
-  const handleSetRuntimeSeed = () => {
+  const handleSetRuntimeSeed = async () => {
     const current = useModularMapStore.getState().serializeForSave();
     saveRuntimeSeed(current);
+
     setRuntimeSeedSaved(true);
-    setMessage('Semilla activa actualizada: este mapa se usará como fallback automáticamente.');
     setTimeout(() => setRuntimeSeedSaved(false), 3000);
+
+    if (!token) {
+      setMessage(
+        'Semilla activa local actualizada (fallback). Inicia sesión para sobrescribir también la semilla remota.',
+      );
+      return;
+    }
+
+    setSavingLayout(true);
+    try {
+      const response = await saveModularMapLayout(token, current);
+      const nextPayload = JSON.stringify(response.data, null, 2);
+      lastSavedPayloadRef.current = nextPayload;
+      setMessage(
+        `Semilla remota sobrescrita: backend actualizado (${response.meta.savedAt}).`,
+      );
+    } catch (error: unknown) {
+      setMessage(
+        error instanceof Error
+          ? `Semilla local actualizada, pero falló el guardado remoto: ${error.message}`
+          : 'Semilla local actualizada, pero no se pudo guardar remoto.',
+      );
+    } finally {
+      setSavingLayout(false);
+    }
   };
 
   const handleClearRuntimeSeed = () => {
