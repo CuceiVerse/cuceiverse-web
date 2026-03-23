@@ -127,7 +127,16 @@ function pickStableBuildingId(
 
   const candidates = Array.from(idWeights.entries())
     .filter(([id]) => previousBuildings[id])
-    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]));
+    .sort((left, right) => {
+      const leftBuilding = previousBuildings[left[0]];
+      const rightBuilding = previousBuildings[right[0]];
+      const leftLocked = Boolean(leftBuilding?.name?.trim());
+      const rightLocked = Boolean(rightBuilding?.name?.trim());
+      if (leftLocked !== rightLocked) {
+        return leftLocked ? -1 : 1;
+      }
+      return right[1] - left[1] || left[0].localeCompare(right[0]);
+    });
 
   if (candidates.length > 0) {
     return candidates[0][0];
@@ -147,6 +156,15 @@ export function recomputeBuildings(
   const blocks = Object.values(blocksById);
   const adjacency = new Map<string, string[]>();
 
+  // Si ambos edificios ya están etiquetados (name no vacío), NO los fusionamos
+  // aunque sus bloques queden adyacentes. Esto evita que una etiqueta "se pierda"
+  // cuando dos edificios ya definidos se juntan.
+  const lockedBuildingIds = new Set(
+    Object.values(previousBuildings)
+      .filter((building) => Boolean(building.name?.trim()))
+      .map((building) => building.id),
+  );
+
   for (const block of blocks) {
     adjacency.set(block.id, []);
   }
@@ -157,6 +175,18 @@ export function recomputeBuildings(
       const right = blocks[compareIndex];
 
       if (!blocksAreEdgeAdjacent(left, right)) {
+        continue;
+      }
+
+      const leftId = left.buildingId;
+      const rightId = right.buildingId;
+      if (
+        leftId &&
+        rightId &&
+        leftId !== rightId &&
+        lockedBuildingIds.has(leftId) &&
+        lockedBuildingIds.has(rightId)
+      ) {
         continue;
       }
 

@@ -66,7 +66,7 @@ export type BuildingBlock = {
 
 export type PathTile = {
   cell: GridCell;
-  material: 'concrete' | 'pavers' | 'grass-transition';
+  material: 'concrete' | 'pavers' | 'grass-transition' | 'indoor';
 };
 
 export type MapProp = {
@@ -163,10 +163,12 @@ export type ModularMapStoreState = {
   grid: IsoGridConfig;
   activeTool: EditorTool;
   activePropKind: PropKind;
+  activePathMaterial: PathTile['material'];
   activeAreaPaletteId: string;
   activeAreaFootprint: BlockFootprint;
   activeBuildingPaletteId: string;
   activeBuildingFootprint: BlockFootprint;
+  activeEraseFootprint: BlockFootprint;
   areaCellsByKey: Record<string, true>;
   blocksById: Record<string, BuildingBlock>;
   buildingsById: Record<string, ModularBuilding>;

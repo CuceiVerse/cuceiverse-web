@@ -1,6 +1,6 @@
-import type { DragEvent as ReactDragEvent } from 'react';
+import { useEffect, useState, type DragEvent as ReactDragEvent } from 'react';
 
-import type { BlockFootprint, EditorTool, PropKind } from '../editor/modularMapTypes';
+import type { BlockFootprint, EditorTool, PathTile, PropKind } from '../editor/modularMapTypes';
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
 
@@ -15,16 +15,20 @@ type Props = {
     | 'tools-plus-props';
   activeTool: EditorTool;
   activePropKind: PropKind;
+  activePathMaterial: PathTile['material'];
   activeAreaPaletteId: string;
   activeBuildingPaletteId: string;
+  activeEraseFootprint: BlockFootprint;
   buildingCount: number;
   pathCount: number;
   propCount: number;
   isDirty: boolean;
   onToolChange: (tool: EditorTool) => void;
   onPropKindChange: (kind: PropKind) => void;
+  onPathMaterialChange: (material: PathTile['material']) => void;
   onAreaPresetChange: (paletteId: string, footprint: BlockFootprint) => void;
   onBuildingPresetChange: (paletteId: string, footprint: BlockFootprint) => void;
+  onEraseFootprintChange: (footprint: BlockFootprint) => void;
   onSave: () => void;
   onReset: () => void;
 };
@@ -35,7 +39,7 @@ const TOOLS: Array<{ id: EditorTool; label: string; icon: string; help: string }
   { id: 'building-block', label: 'Constructor', icon: '▦', help: 'Construye edificios usando bloques del tamano seleccionado.' },
   { id: 'path-brush', label: 'Brush', icon: '▓', help: 'Mantén clic y pinta pasillos de forma continua.' },
   { id: 'prop', label: 'Props 1x1', icon: '•', help: 'Haz clic o arrastra un prop individual al grid.' },
-  { id: 'erase', label: 'Borrar', icon: '⌫', help: 'Borra con clic individual o arrastre continuo sobre pasillos, props o bloques.' },
+  { id: 'erase', label: 'Borrar', icon: '⌫', help: 'Borra con clic individual o arrastre continuo sobre pasillos, props, bloques o area.' },
   { id: 'pan', label: 'Pan', icon: '✥', help: 'Desplaza la cámara con Space + arrastre.' },
 ];
 
@@ -80,19 +84,33 @@ export function ModularToolPalette({
   variant = 'full',
   activeTool,
   activePropKind,
+  activePathMaterial,
   activeAreaPaletteId,
   activeBuildingPaletteId,
+  activeEraseFootprint,
   buildingCount,
   pathCount,
   propCount,
   isDirty,
   onToolChange,
   onPropKindChange,
+  onPathMaterialChange,
   onAreaPresetChange,
   onBuildingPresetChange,
+  onEraseFootprintChange,
   onSave,
   onReset,
 }: Props) {
+  const [customAreaWidth, setCustomAreaWidth] = useState(6);
+  const [customAreaHeight, setCustomAreaHeight] = useState(6);
+  const [customEraseWidth, setCustomEraseWidth] = useState(() => Math.max(1, activeEraseFootprint.width));
+  const [customEraseHeight, setCustomEraseHeight] = useState(() => Math.max(1, activeEraseFootprint.height));
+
+  useEffect(() => {
+    setCustomEraseWidth(Math.max(1, activeEraseFootprint.width));
+    setCustomEraseHeight(Math.max(1, activeEraseFootprint.height));
+  }, [activeEraseFootprint.width, activeEraseFootprint.height]);
+
   const isPropsCarousel = layout === 'horizontal' && variant === 'props-only';
   const activeHelp = TOOLS.find((tool) => tool.id === activeTool)?.help ?? 'Selecciona una herramienta.';
   const showToolsPanel =
@@ -134,6 +152,86 @@ export function ModularToolPalette({
           </div>
 
           <p className="modular-help">{activeHelp}</p>
+
+          {activeTool === 'erase' ? (
+            <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <strong className="text-sm text-slate-100">Borrador</strong>
+                <span className="text-xs text-slate-400">W×H</span>
+              </div>
+
+              <div className="mt-2 grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={customEraseWidth}
+                  onChange={(event) => {
+                    const next = Math.max(1, Math.floor(Number(event.target.value)));
+                    setCustomEraseWidth(Number.isFinite(next) ? next : 1);
+                  }}
+                  className="w-full rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100"
+                  title="Ancho"
+                />
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={customEraseHeight}
+                  onChange={(event) => {
+                    const next = Math.max(1, Math.floor(Number(event.target.value)));
+                    setCustomEraseHeight(Number.isFinite(next) ? next : 1);
+                  }}
+                  className="w-full rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100"
+                  title="Alto"
+                />
+                <button
+                  type="button"
+                  className="rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100 hover:bg-slate-800"
+                  onClick={() => {
+                    onEraseFootprintChange({ width: customEraseWidth, height: customEraseHeight });
+                  }}
+                  title="Usar borrador personalizado"
+                >
+                  Usar
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400">Borra un rectángulo centrado en el cursor.</p>
+            </div>
+          ) : null}
+
+          {activeTool === 'path-brush' ? (
+            <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <strong className="text-sm text-slate-100">Pasillo</strong>
+                <span className="text-xs text-slate-400">Tipo</span>
+              </div>
+
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className={`rounded-md border border-slate-700 px-2 py-1 text-slate-100 hover:bg-slate-800 ${
+                    activePathMaterial !== 'indoor' ? 'bg-slate-800/70' : 'bg-slate-900/70'
+                  }`}
+                  onClick={() => onPathMaterialChange('concrete')}
+                  title="Pasillo normal"
+                >
+                  Normal
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-md border border-slate-700 px-2 py-1 text-slate-100 hover:bg-slate-800 ${
+                    activePathMaterial === 'indoor' ? 'bg-slate-800/70' : 'bg-slate-900/70'
+                  }`}
+                  onClick={() => onPathMaterialChange('indoor')}
+                  title="Pasillo interno (permitido dentro de edificios)"
+                >
+                  Interno
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400">El pasillo interno se puede pintar dentro de edificios.</p>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -174,6 +272,53 @@ export function ModularToolPalette({
               </div>
             </button>
           ))}
+        </div>
+
+        <div className="mt-3 rounded-xl border border-slate-700/60 bg-slate-900/40 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <strong className="text-sm text-slate-100">Area personalizada</strong>
+            <span className="text-xs text-slate-400">W×H</span>
+          </div>
+
+          <div className="mt-2 grid grid-cols-[1fr_1fr_auto] items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={customAreaWidth}
+              onChange={(event) => {
+                const next = Math.max(1, Math.floor(Number(event.target.value)));
+                setCustomAreaWidth(Number.isFinite(next) ? next : 1);
+              }}
+              className="w-full rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100"
+              title="Ancho"
+            />
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={customAreaHeight}
+              onChange={(event) => {
+                const next = Math.max(1, Math.floor(Number(event.target.value)));
+                setCustomAreaHeight(Number.isFinite(next) ? next : 1);
+              }}
+              className="w-full rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100"
+              title="Alto"
+            />
+            <button
+              type="button"
+              className="rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100 hover:bg-slate-800"
+              onClick={() => {
+                const footprint = { width: customAreaWidth, height: customAreaHeight };
+                onAreaPresetChange('area-custom', footprint);
+                onToolChange('area-block');
+              }}
+              title="Usar área personalizada"
+            >
+              Usar
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] text-slate-400">Expande superficie verde con las medidas indicadas.</p>
         </div>
       </div>
       ) : null}

@@ -4,6 +4,7 @@ import campusModularSeed from '../data/campusModularSeed.json';
 import {
   canPlaceBlock,
   cellKey,
+  blocksAreEdgeAdjacent,
   expandBlockCells,
   getBuildingIdAtCell,
   recomputeBuildings,
@@ -67,8 +68,10 @@ type ModularMapStore = ModularMapStoreState & {
   hydrateFromSeed: (seed: ModularMapSeed) => void;
   setActiveTool: (tool: ModularMapStoreState['activeTool']) => void;
   setActivePropKind: (kind: PropKind) => void;
+  setActivePathMaterial: (material: PathTile['material']) => void;
   setActiveAreaPreset: (paletteId: string, footprint?: BlockFootprint) => void;
   setActiveBuildingPreset: (paletteId: string, footprint?: BlockFootprint) => void;
+  setActiveEraseFootprint: (footprint: BlockFootprint) => void;
   expandArea: (anchor: GridCell, paletteId?: string, footprint?: BlockFootprint) => { ok: boolean; reason?: string };
   placeBuildingBlock: (anchor: GridCell, paletteId?: string, footprint?: BlockFootprint) => {
     ok: boolean;
@@ -240,10 +243,12 @@ function bootstrapState(seed: ModularMapSeed): ModularMapStoreState {
     grid: seed.grid,
     activeTool: 'select',
     activePropKind: 'tree',
+    activePathMaterial: 'concrete',
     activeAreaPaletteId: DEFAULT_AREA_PRESET.paletteId,
     activeAreaFootprint: DEFAULT_AREA_PRESET.footprint,
     activeBuildingPaletteId: DEFAULT_BUILDING_PRESET.paletteId,
     activeBuildingFootprint: DEFAULT_BUILDING_PRESET.footprint,
+    activeEraseFootprint: { width: 1, height: 1 },
     areaCellsByKey: seedToAreaCells(seed),
     blocksById: indexed.blocksById,
     buildingsById: indexed.buildingsById,
@@ -297,6 +302,10 @@ export const useModularMapStore = create<ModularMapStore>((set, get) => ({
     set({ activePropKind: kind });
   },
 
+  setActivePathMaterial: (material) => {
+    set({ activePathMaterial: material });
+  },
+
   setActiveAreaPreset: (paletteId, footprint) => {
     set((state) => ({
       activeAreaPaletteId: paletteId,
@@ -315,6 +324,17 @@ export const useModularMapStore = create<ModularMapStore>((set, get) => ({
       ),
       activeTool: 'building-block',
     }));
+  },
+
+  setActiveEraseFootprint: (footprint) => {
+    const nextWidth = Math.max(1, Math.floor(footprint.width));
+    const nextHeight = Math.max(1, Math.floor(footprint.height));
+    set({
+      activeEraseFootprint: {
+        width: Number.isFinite(nextWidth) ? nextWidth : 1,
+        height: Number.isFinite(nextHeight) ? nextHeight : 1,
+      },
+    });
   },
 
   expandArea: (anchor, paletteId, footprint) => {
@@ -416,6 +436,44 @@ export const useModularMapStore = create<ModularMapStore>((set, get) => ({
     }
 
     const blockId = `block-${(state.lastGeneratedIds.block + 1).toString().padStart(4, '0')}`;
+
+    const candidateBuildingId = (() => {
+      const newBlock = {
+        id: blockId,
+        anchor,
+        size: resolvedFootprint,
+        sourcePaletteId: resolvedPaletteId,
+        buildingId: null,
+      };
+
+      const counts = new Map<string, number>();
+      for (const existing of Object.values(state.blocksById)) {
+        if (!existing.buildingId) {
+          continue;
+        }
+        if (!blocksAreEdgeAdjacent(existing, newBlock)) {
+          continue;
+        }
+        counts.set(existing.buildingId, (counts.get(existing.buildingId) ?? 0) + 1);
+      }
+      if (counts.size === 0) {
+        return null;
+      }
+
+      const candidates = Array.from(counts.entries()).sort((left, right) => {
+        const leftBuilding = state.buildingsById[left[0]];
+        const rightBuilding = state.buildingsById[right[0]];
+        const leftLocked = Boolean(leftBuilding?.name?.trim());
+        const rightLocked = Boolean(rightBuilding?.name?.trim());
+        if (leftLocked !== rightLocked) {
+          return leftLocked ? -1 : 1;
+        }
+        return right[1] - left[1] || left[0].localeCompare(right[0]);
+      });
+
+      return candidates[0]?.[0] ?? null;
+    })();
+
     let nextBuildingCounter = state.lastGeneratedIds.building;
     const nextBuildingId = () => {
       nextBuildingCounter += 1;
@@ -430,7 +488,7 @@ export const useModularMapStore = create<ModularMapStore>((set, get) => ({
           anchor,
           size: resolvedFootprint,
           sourcePaletteId: resolvedPaletteId,
-          buildingId: null,
+          buildingId: candidateBuildingId,
         },
       },
       state.buildingsById,
@@ -468,7 +526,7 @@ export const useModularMapStore = create<ModularMapStore>((set, get) => ({
       return { ok: false, reason: 'Primero habilita esta celda con bloques de area.' };
     }
     const buildingId = getBuildingIdAtCell(cell, state.blocksById);
-    if (buildingId) {
+    if (buildingId && material !== 'indoor') {
       return { ok: false, reason: 'No se puede pintar pasillo debajo de un edificio.' };
     }
 
@@ -665,6 +723,11 @@ export const useModularMapStore = create<ModularMapStore>((set, get) => ({
       expandBlockCells(item.anchor, item.size).some((occupiedCell) => cellKey(occupiedCell) === pathId),
     );
     if (!block) {
+      if (state.areaCellsByKey[pathId]) {
+        const nextArea = { ...state.areaCellsByKey };
+        delete nextArea[pathId];
+        set({ areaCellsByKey: nextArea, selection: null });
+      }
       return;
     }
 

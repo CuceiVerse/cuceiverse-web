@@ -58,10 +58,12 @@ export function MapEditorView() {
       grid: state.grid,
       activeTool: state.activeTool,
       activePropKind: state.activePropKind,
+      activePathMaterial: state.activePathMaterial,
       activeAreaPaletteId: state.activeAreaPaletteId,
       activeAreaFootprint: state.activeAreaFootprint,
       activeBuildingPaletteId: state.activeBuildingPaletteId,
       activeBuildingFootprint: state.activeBuildingFootprint,
+      activeEraseFootprint: state.activeEraseFootprint,
       areaCellsByKey: state.areaCellsByKey,
       blocksById: state.blocksById,
       buildingsById: state.buildingsById,
@@ -75,8 +77,10 @@ export function MapEditorView() {
   const hydrateFromSeed = useModularMapStore((state) => state.hydrateFromSeed);
   const setActiveTool = useModularMapStore((state) => state.setActiveTool);
   const setActivePropKind = useModularMapStore((state) => state.setActivePropKind);
+  const setActivePathMaterial = useModularMapStore((state) => state.setActivePathMaterial);
   const setActiveAreaPreset = useModularMapStore((state) => state.setActiveAreaPreset);
   const setActiveBuildingPreset = useModularMapStore((state) => state.setActiveBuildingPreset);
+  const setActiveEraseFootprint = useModularMapStore((state) => state.setActiveEraseFootprint);
   const expandArea = useModularMapStore((state) => state.expandArea);
   const placeBuildingBlock = useModularMapStore((state) => state.placeBuildingBlock);
   const paintPathCell = useModularMapStore((state) => state.paintPathCell);
@@ -246,14 +250,14 @@ export function MapEditorView() {
   };
 
   const handlePathBrushStart = (cell: GridCell) => {
-    const result = paintPathCell(cell);
+    const result = paintPathCell(cell, editorState.activePathMaterial);
     if (!result.ok && result.reason) {
       setMessage(result.reason);
     }
   };
 
   const handlePathBrushMove = (cell: GridCell) => {
-    void paintPathCell(cell);
+    void paintPathCell(cell, editorState.activePathMaterial);
   };
 
   const handleSave = async () => {
@@ -520,6 +524,7 @@ export function MapEditorView() {
             onPlaceBuildingBlock={handlePlaceBuildingBlock}
             onPlaceProp={handlePlaceProp}
             viewMode={viewMode}
+            templateUnderlayEnabled
           />
         </div>
 
@@ -530,16 +535,20 @@ export function MapEditorView() {
               variant="tools-only"
               activeTool={editorState.activeTool}
               activePropKind={editorState.activePropKind}
+              activePathMaterial={editorState.activePathMaterial}
               activeAreaPaletteId={editorState.activeAreaPaletteId}
               activeBuildingPaletteId={editorState.activeBuildingPaletteId}
+              activeEraseFootprint={editorState.activeEraseFootprint}
               buildingCount={Object.keys(editorState.buildingsById).length}
               pathCount={Object.keys(editorState.pathsByCell).length}
               propCount={Object.keys(editorState.propsById).length}
               isDirty={isDirty}
               onToolChange={setActiveTool}
               onPropKindChange={setActivePropKind}
+              onPathMaterialChange={setActivePathMaterial}
               onAreaPresetChange={setActiveAreaPreset}
               onBuildingPresetChange={setActiveBuildingPreset}
+              onEraseFootprintChange={setActiveEraseFootprint}
               onSave={handleSave}
               onReset={handleReset}
             />
@@ -551,16 +560,20 @@ export function MapEditorView() {
               variant="content-no-props"
               activeTool={editorState.activeTool}
               activePropKind={editorState.activePropKind}
+              activePathMaterial={editorState.activePathMaterial}
               activeAreaPaletteId={editorState.activeAreaPaletteId}
               activeBuildingPaletteId={editorState.activeBuildingPaletteId}
+              activeEraseFootprint={editorState.activeEraseFootprint}
               buildingCount={Object.keys(editorState.buildingsById).length}
               pathCount={Object.keys(editorState.pathsByCell).length}
               propCount={Object.keys(editorState.propsById).length}
               isDirty={isDirty}
               onToolChange={setActiveTool}
               onPropKindChange={setActivePropKind}
+              onPathMaterialChange={setActivePathMaterial}
               onAreaPresetChange={setActiveAreaPreset}
               onBuildingPresetChange={setActiveBuildingPreset}
+              onEraseFootprintChange={setActiveEraseFootprint}
               onSave={handleSave}
               onReset={handleReset}
             />
@@ -581,16 +594,20 @@ export function MapEditorView() {
               variant="props-only"
               activeTool={editorState.activeTool}
               activePropKind={editorState.activePropKind}
+              activePathMaterial={editorState.activePathMaterial}
               activeAreaPaletteId={editorState.activeAreaPaletteId}
               activeBuildingPaletteId={editorState.activeBuildingPaletteId}
+              activeEraseFootprint={editorState.activeEraseFootprint}
               buildingCount={Object.keys(editorState.buildingsById).length}
               pathCount={Object.keys(editorState.pathsByCell).length}
               propCount={Object.keys(editorState.propsById).length}
               isDirty={isDirty}
               onToolChange={setActiveTool}
               onPropKindChange={setActivePropKind}
+              onPathMaterialChange={setActivePathMaterial}
               onAreaPresetChange={setActiveAreaPreset}
               onBuildingPresetChange={setActiveBuildingPreset}
+              onEraseFootprintChange={setActiveEraseFootprint}
               onSave={handleSave}
               onReset={handleReset}
             />

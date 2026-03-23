@@ -264,10 +264,12 @@ function toViewerState(
   | 'grid'
   | 'activeTool'
   | 'activePropKind'
+  | 'activePathMaterial'
   | 'activeAreaPaletteId'
   | 'activeAreaFootprint'
   | 'activeBuildingPaletteId'
   | 'activeBuildingFootprint'
+  | 'activeEraseFootprint'
   | 'areaCellsByKey'
   | 'blocksById'
   | 'buildingsById'
@@ -347,10 +349,12 @@ function toViewerState(
     grid: layout.grid,
     activeTool: 'pan',
     activePropKind: 'tree',
+    activePathMaterial: 'concrete',
     activeAreaPaletteId: 'area-2x2',
     activeAreaFootprint: { width: 2, height: 2 },
     activeBuildingPaletteId: 'building-2x2',
     activeBuildingFootprint: { width: 2, height: 2 },
+    activeEraseFootprint: { width: 1, height: 1 },
     areaCellsByKey,
     blocksById,
     buildingsById,
@@ -825,8 +829,8 @@ export function ModularReadOnlyMap() {
               <button
                 type="button"
                 className={`min-w-[100px] rounded-full px-3 py-2 text-xs font-bold transition-all ${viewMode === 'isometric'
-                    ? 'bg-cyan-500 text-cyan-950 shadow-[0_0_15px_rgba(34,211,238,0.4)]'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  ? 'bg-cyan-500 text-cyan-950 shadow-[0_0_15px_rgba(34,211,238,0.4)]'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
                 onClick={() => setViewMode('isometric')}
               >
@@ -835,8 +839,8 @@ export function ModularReadOnlyMap() {
               <button
                 type="button"
                 className={`min-w-[72px] rounded-full px-3 py-2 text-xs font-bold transition-all ${viewMode === '2d'
-                    ? 'bg-emerald-500 text-emerald-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  ? 'bg-emerald-500 text-emerald-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800'
                   }`}
                 onClick={() => setViewMode('2d')}
               >

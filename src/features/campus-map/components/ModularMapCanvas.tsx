@@ -1,5 +1,5 @@
 import { Application, extend } from '@pixi/react';
-import { Container, Graphics, Text } from 'pixi.js';
+import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import {
   useEffect,
   useMemo,
@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 
-import { cellKey, getBuildingIdAtCell } from '../editor/buildingAdjacency';
+import { cellKey, expandBlockCells, getBuildingIdAtCell } from '../editor/buildingAdjacency';
 import {
   clamp,
   flattenScreenPoints,
@@ -27,7 +27,7 @@ import type {
   PropKind,
 } from '../editor/modularMapTypes';
 
-extend({ Container, Graphics, Text });
+extend({ Container, Graphics, Sprite, Text });
 
 type DragPalettePayload =
   | { kind: 'area-block'; paletteId: string; footprint: BlockFootprint }
@@ -42,6 +42,7 @@ type Props = {
     | 'activePropKind'
     | 'activeAreaFootprint'
     | 'activeBuildingFootprint'
+    | 'activeEraseFootprint'
     | 'areaCellsByKey'
     | 'blocksById'
     | 'buildingsById'
@@ -70,11 +71,17 @@ type Props = {
   avatarPosition?: { x: number; y: number };
   /** Avatar Habbo image URL (optional, falls back to a colored circle). */
   avatarImageUrl?: string;
+
+  /**
+   * Dev-only: show an image behind the grid as a template for map construction.
+   * Intended for the editor in 2D mode.
+   */
+  templateUnderlayEnabled?: boolean;
 };
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
 const BUILDING_ELEVATION = 16;
-const MIN_ZOOM = 0.15;
+const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 3;
 
 const AVATAR_BUBBLE_ZOOM_THRESHOLD = 0.45;
@@ -352,8 +359,126 @@ export function ModularMapCanvas({
   onCellClick,
   avatarPosition,
   avatarImageUrl,
+  templateUnderlayEnabled = false,
 }: Props) {
+  const showTemplateUnderlay =
+    import.meta.env.DEV &&
+    templateUnderlayEnabled &&
+    viewMode === '2d' &&
+    typeof import.meta.env.VITE_CAMPUS_MAP_UNDERLAY_URL === 'string' &&
+    import.meta.env.VITE_CAMPUS_MAP_UNDERLAY_URL.trim().length > 0;
+
+  const devUnderlayUrl = showTemplateUnderlay
+    ? import.meta.env.VITE_CAMPUS_MAP_UNDERLAY_URL.trim()
+    : '';
+
+  const devUnderlayStorageKey = useMemo(() => {
+    const url = devUnderlayUrl.trim();
+    return url ? `cuceiverse.templateUnderlay.v1:${url}` : '';
+  }, [devUnderlayUrl]);
+
+  const [devUnderlayScale, setDevUnderlayScale] = useState(() => {
+    if (!import.meta.env.DEV) {
+      return 1;
+    }
+    const raw = import.meta.env.VITE_CAMPUS_MAP_UNDERLAY_SCALE;
+    const parsed = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  });
+
+  const [devUnderlayOffset, setDevUnderlayOffset] = useState(() => ({ x: 0, y: 0 }));
+
+  const [devUnderlayVisible, setDevUnderlayVisible] = useState(true);
+
+  const [devUnderlayTexture, setDevUnderlayTexture] = useState<Texture | null>(null);
+
+  // Base de ajuste (fit + centro) que NO debe cambiar aunque el grid se expanda.
+  // Esto evita que la plantilla se mueva/reescale sola mientras construyes.
+  const [devUnderlayBase, setDevUnderlayBase] = useState<{
+    centerX: number;
+    centerY: number;
+    fitScale: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!devUnderlayUrl) {
+      setDevUnderlayTexture(null);
+      setDevUnderlayBase(null);
+      return;
+    }
+
+    let cancelled = false;
+    setDevUnderlayTexture(null);
+
+    (async () => {
+      try {
+        const texture = (await Assets.load(devUnderlayUrl)) as Texture;
+        if (!cancelled) {
+          setDevUnderlayTexture(texture);
+        }
+      } catch {
+        if (!cancelled) {
+          setDevUnderlayTexture(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [devUnderlayUrl]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+    if (!devUnderlayStorageKey || typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(devUnderlayStorageKey);
+      if (!raw) {
+        return;
+      }
+      const parsed = JSON.parse(raw) as {
+        scale?: unknown;
+        offset?: { x?: unknown; y?: unknown };
+        base?: { centerX?: unknown; centerY?: unknown; fitScale?: unknown };
+      };
+
+      const nextScale = typeof parsed.scale === 'number' ? parsed.scale : NaN;
+      if (Number.isFinite(nextScale) && nextScale > 0) {
+        setDevUnderlayScale(nextScale);
+      }
+
+      const nextX = typeof parsed.offset?.x === 'number' ? parsed.offset.x : NaN;
+      const nextY = typeof parsed.offset?.y === 'number' ? parsed.offset.y : NaN;
+      if (Number.isFinite(nextX) || Number.isFinite(nextY)) {
+        setDevUnderlayOffset((current) => ({
+          x: Number.isFinite(nextX) ? nextX : current.x,
+          y: Number.isFinite(nextY) ? nextY : current.y,
+        }));
+      }
+
+      const nextCenterX = typeof parsed.base?.centerX === 'number' ? parsed.base.centerX : NaN;
+      const nextCenterY = typeof parsed.base?.centerY === 'number' ? parsed.base.centerY : NaN;
+      const nextFitScale = typeof parsed.base?.fitScale === 'number' ? parsed.base.fitScale : NaN;
+      if (Number.isFinite(nextCenterX) && Number.isFinite(nextCenterY) && Number.isFinite(nextFitScale) && nextFitScale > 0) {
+        setDevUnderlayBase({ centerX: nextCenterX, centerY: nextCenterY, fitScale: nextFitScale });
+      }
+    } catch {
+      // ignore
+    }
+  }, [devUnderlayStorageKey]);
+
+  // When a template underlay is active in 2D, make tiles partially transparent
+  // so the image can be seen behind the grid.
+  const templateTileAlpha = devUnderlayTexture && devUnderlayVisible ? 0.35 : 1;
+  const templateBuildingAlpha = devUnderlayTexture && devUnderlayVisible ? 0.75 : 1;
+
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const didMeasureViewportRef = useRef(false);
   const panRef = useRef<{
     pointerX: number;
     pointerY: number;
@@ -362,8 +487,10 @@ export function ModularMapCanvas({
   } | null>(null);
   const propDragRef = useRef<string | null>(null);
   const brushActiveRef = useRef(false);
+  const areaBrushActiveRef = useRef(false);
+  const lastAreaBrushCellKeyRef = useRef<string | null>(null);
   const eraseActiveRef = useRef(false);
-  const lastEraseCellKeyRef = useRef<string | null>(null);
+  const erasedCellKeysRef = useRef<Set<string>>(new Set());
   // Used to distinguish a click (no drag) from a pan drag in pan mode
   const panStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const activeTouchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
@@ -386,6 +513,65 @@ export function ModularMapCanvas({
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [viewportSize, setViewportSize] = useState({ width: 1400, height: 820 });
+
+  const didAutoFitRef = useRef(false);
+  const lastAutoFitModeRef = useRef<NonNullable<Props['viewMode']> | undefined>(undefined);
+
+  const campusBounds = useMemo(() => {
+    return viewMode === '2d'
+      ? get2DCampusBounds(editorState.grid)
+      : getIsoCampusBounds(editorState.grid);
+  }, [viewMode, editorState.grid]);
+
+  // Inicializar la base una sola vez cuando exista textura.
+  useEffect(() => {
+    if (!devUnderlayTexture) {
+      return;
+    }
+    if (devUnderlayBase) {
+      return;
+    }
+
+    const campusWidth = Math.max(1, campusBounds.maxX - campusBounds.minX);
+    const campusHeight = Math.max(1, campusBounds.maxY - campusBounds.minY);
+
+    const textureWidth = Math.max(1, devUnderlayTexture.width);
+    const textureHeight = Math.max(1, devUnderlayTexture.height);
+    const fitScale = Math.min(campusWidth / textureWidth, campusHeight / textureHeight);
+
+    const centerX = (campusBounds.minX + campusBounds.maxX) / 2;
+    const centerY = (campusBounds.minY + campusBounds.maxY) / 2;
+
+    setDevUnderlayBase({ centerX, centerY, fitScale: Math.max(0.0001, fitScale) });
+  }, [devUnderlayTexture, devUnderlayBase, campusBounds.maxX, campusBounds.maxY, campusBounds.minX, campusBounds.minY]);
+
+  const devUnderlayPlacement = useMemo(() => {
+    if (!devUnderlayTexture) {
+      return null;
+    }
+
+    // Si existe base, no dependemos de campusBounds para evitar que la plantilla se mueva
+    // cuando el grid crece mientras construyes.
+    const fallbackCenterX = (campusBounds.minX + campusBounds.maxX) / 2;
+    const fallbackCenterY = (campusBounds.minY + campusBounds.maxY) / 2;
+
+    const campusWidth = Math.max(1, campusBounds.maxX - campusBounds.minX);
+    const campusHeight = Math.max(1, campusBounds.maxY - campusBounds.minY);
+    const textureWidth = Math.max(1, devUnderlayTexture.width);
+    const textureHeight = Math.max(1, devUnderlayTexture.height);
+    const fallbackFitScale = Math.min(campusWidth / textureWidth, campusHeight / textureHeight);
+
+    const baseCenterX = devUnderlayBase?.centerX ?? fallbackCenterX;
+    const baseCenterY = devUnderlayBase?.centerY ?? fallbackCenterY;
+    const baseFitScale = devUnderlayBase?.fitScale ?? Math.max(0.0001, fallbackFitScale);
+
+    const scale = baseFitScale * devUnderlayScale;
+    return {
+      x: baseCenterX + devUnderlayOffset.x,
+      y: baseCenterY + devUnderlayOffset.y,
+      scale,
+    };
+  }, [campusBounds.maxX, campusBounds.maxY, campusBounds.minX, campusBounds.minY, devUnderlayBase, devUnderlayOffset.x, devUnderlayOffset.y, devUnderlayScale, devUnderlayTexture]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -434,6 +620,7 @@ export function ModularMapCanvas({
     }
 
     const updateSize = () => {
+      didMeasureViewportRef.current = true;
       setViewportSize({
         width: Math.max(1, viewport.clientWidth),
         height: Math.max(1, viewport.clientHeight),
@@ -450,13 +637,19 @@ export function ModularMapCanvas({
   }, []);
 
   useEffect(() => {
-    const bounds =
-      viewMode === '2d'
-        ? get2DCampusBounds(editorState.grid)
-        : getIsoCampusBounds(editorState.grid);
-
-    setCamera(fitCameraToBounds(viewportSize, bounds));
-  }, [viewMode, viewportSize, editorState.grid.columns, editorState.grid.rows, editorState.grid.tileWidth, editorState.grid.tileHeight, editorState.grid.origin.x, editorState.grid.origin.y]);
+    // Auto-fit only on first layout (or when switching view mode).
+    // Avoid re-fitting when the editor expands the grid while placing blocks,
+    // which would feel like a random re-center.
+    if (!didMeasureViewportRef.current) {
+      return;
+    }
+    const modeChanged = lastAutoFitModeRef.current !== viewMode;
+    if (!didAutoFitRef.current || modeChanged) {
+      setCamera(fitCameraToBounds(viewportSize, campusBounds));
+      didAutoFitRef.current = true;
+      lastAutoFitModeRef.current = viewMode;
+    }
+  }, [viewportSize.width, viewportSize.height, viewMode, campusBounds]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -541,12 +734,40 @@ export function ModularMapCanvas({
   };
 
   const eraseAtCellOnce = (cell: GridCell) => {
+    const footprint = editorState.activeEraseFootprint;
+    const width = Math.max(1, Math.floor(footprint.width));
+    const height = Math.max(1, Math.floor(footprint.height));
+
+    const topLeft: GridCell = {
+      x: cell.x - Math.floor(width / 2),
+      y: cell.y - Math.floor(height / 2),
+    };
+
+    for (const target of expandBlockCells(topLeft, { width, height })) {
+      if (
+        target.x < 0 ||
+        target.y < 0 ||
+        target.x >= editorState.grid.columns ||
+        target.y >= editorState.grid.rows
+      ) {
+        continue;
+      }
+      const key = cellKey(target);
+      if (erasedCellKeysRef.current.has(key)) {
+        continue;
+      }
+      erasedCellKeysRef.current.add(key);
+      onErase(target);
+    }
+  };
+
+  const paintAreaAtCellOnce = (cell: GridCell) => {
     const key = cellKey(cell);
-    if (lastEraseCellKeyRef.current === key) {
+    if (lastAreaBrushCellKeyRef.current === key) {
       return;
     }
-    lastEraseCellKeyRef.current = key;
-    onErase(cell);
+    lastAreaBrushCellKeyRef.current = key;
+    onPlaceBuildingBlock(cell);
   };
 
   const handleMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
@@ -577,11 +798,18 @@ export function ModularMapCanvas({
 
     if (editorState.activeTool === 'erase') {
       eraseActiveRef.current = true;
+      erasedCellKeysRef.current = new Set();
       eraseAtCellOnce(cell);
       return;
     }
 
-    if (editorState.activeTool === 'building-block' || editorState.activeTool === 'area-block') {
+    if (editorState.activeTool === 'area-block') {
+      areaBrushActiveRef.current = true;
+      paintAreaAtCellOnce(cell);
+      return;
+    }
+
+    if (editorState.activeTool === 'building-block') {
       onPlaceBuildingBlock(cell);
       return;
     }
@@ -681,6 +909,11 @@ export function ModularMapCanvas({
       return;
     }
 
+    if (areaBrushActiveRef.current && editorState.activeTool === 'area-block') {
+      paintAreaAtCellOnce(cell);
+      return;
+    }
+
     if (propDragRef.current && editorState.activeTool === 'select') {
       onMoveProp(propDragRef.current, cell);
       return;
@@ -749,9 +982,13 @@ export function ModularMapCanvas({
       brushActiveRef.current = false;
       onPathBrushEnd();
     }
+    if (areaBrushActiveRef.current) {
+      areaBrushActiveRef.current = false;
+      lastAreaBrushCellKeyRef.current = null;
+    }
     if (eraseActiveRef.current) {
       eraseActiveRef.current = false;
-      lastEraseCellKeyRef.current = null;
+      erasedCellKeysRef.current = new Set();
       onEraseEnd();
     }
     // If we were in pan mode and barely moved (i.e. a click), fire onCellClick
@@ -850,6 +1087,100 @@ export function ModularMapCanvas({
       onDragOver={handleDragOver}
       onContextMenu={(event) => event.preventDefault()}
     >
+      {devUnderlayTexture ? (
+        <div className="absolute right-3 top-36 z-20 rounded-xl border border-slate-700/60 bg-[#030610]/80 px-3 py-2 text-xs text-slate-200 backdrop-blur">
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-semibold">Plantilla (dev)</div>
+            <button
+              type="button"
+              className="rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100 hover:bg-slate-800"
+              title={devUnderlayVisible ? 'Ocultar plantilla' : 'Mostrar plantilla'}
+              onClick={() => setDevUnderlayVisible((current) => !current)}
+            >
+              {devUnderlayVisible ? 'Ocultar' : 'Mostrar'}
+            </button>
+          </div>
+          <label className="mt-1 flex items-center gap-2">
+            <span className="text-slate-300">Escala</span>
+            <input
+              type="range"
+              min={0.5}
+              max={10}
+              step={0.01}
+              value={devUnderlayScale}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setDevUnderlayScale(Number.isFinite(next) ? next : 1);
+              }}
+            />
+            <span className="tabular-nums text-slate-300">{devUnderlayScale.toFixed(2)}×</span>
+          </label>
+
+          <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
+            <span className="text-slate-300">X</span>
+            <input
+              type="number"
+              step={1}
+              value={Math.round(devUnderlayOffset.x)}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setDevUnderlayOffset((prev) => ({ ...prev, x: Number.isFinite(next) ? next : prev.x }));
+              }}
+              className="w-full rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100"
+            />
+            <span className="text-slate-300">Y</span>
+            <input
+              type="number"
+              step={1}
+              value={Math.round(devUnderlayOffset.y)}
+              onChange={(event) => {
+                const next = Number(event.target.value);
+                setDevUnderlayOffset((prev) => ({ ...prev, y: Number.isFinite(next) ? next : prev.y }));
+              }}
+              className="w-full rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100"
+            />
+          </div>
+
+          <div className="mt-2 flex items-center justify-end">
+            <button
+              type="button"
+              className="rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100 hover:bg-slate-800"
+              title="Guardar escala y posición para esta imagen"
+              onClick={() => {
+                if (!import.meta.env.DEV || !devUnderlayStorageKey || typeof window === 'undefined') {
+                  return;
+                }
+                try {
+                  const fallbackCenterX = (campusBounds.minX + campusBounds.maxX) / 2;
+                  const fallbackCenterY = (campusBounds.minY + campusBounds.maxY) / 2;
+
+                  const campusWidth = Math.max(1, campusBounds.maxX - campusBounds.minX);
+                  const campusHeight = Math.max(1, campusBounds.maxY - campusBounds.minY);
+                  const textureWidth = Math.max(1, devUnderlayTexture.width);
+                  const textureHeight = Math.max(1, devUnderlayTexture.height);
+                  const fallbackFitScale = Math.min(campusWidth / textureWidth, campusHeight / textureHeight);
+
+                  const base = {
+                    centerX: devUnderlayBase?.centerX ?? fallbackCenterX,
+                    centerY: devUnderlayBase?.centerY ?? fallbackCenterY,
+                    fitScale: devUnderlayBase?.fitScale ?? Math.max(0.0001, fallbackFitScale),
+                  };
+
+                  window.localStorage.setItem(
+                    devUnderlayStorageKey,
+                    JSON.stringify({ scale: devUnderlayScale, offset: devUnderlayOffset, base }),
+                  );
+                } catch {
+                  // ignore
+                }
+              }}
+            >
+              Fijar
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <Application
         resizeTo={viewportRef}
         antialias
@@ -858,6 +1189,18 @@ export function ModularMapCanvas({
         autoDensity
       >
         <pixiContainer x={camera.x} y={camera.y} scale={camera.scale} sortableChildren>
+          {devUnderlayVisible && devUnderlayTexture && devUnderlayPlacement ? (
+            <pixiSprite
+              zIndex={-100}
+              texture={devUnderlayTexture}
+              anchor={0.5}
+              x={devUnderlayPlacement.x}
+              y={devUnderlayPlacement.y}
+              scale={{ x: devUnderlayPlacement.scale, y: devUnderlayPlacement.scale }}
+              alpha={0.55}
+            />
+          ) : null}
+
           <pixiGraphics
             zIndex={0}
             draw={(graphics) => {
@@ -875,13 +1218,21 @@ export function ModularMapCanvas({
                       ? 0xd8d0bc
                       : path.material === 'grass-transition'
                         ? 0x8cb989
+                        : path.material === 'indoor'
+                          ? 0xe7d7b5
                         : 0xc8cfd8
                     : (column + row) % 2 === 0
                       ? 0x86c56e
                       : 0x7bb864;
                   const stroke = path ? 0x6f7f8e : 0x5e8b4c;
                   if (viewMode === '2d') {
-                    drawTopDownTile(graphics, { x: column, y: row }, fill, 1, stroke);
+                    drawTopDownTile(
+                      graphics,
+                      { x: column, y: row },
+                      fill,
+                      templateTileAlpha,
+                      stroke,
+                    );
                   } else {
                     drawGridTile(graphics, { x: column, y: row }, editorState.grid, fill, 1, stroke);
                   }
@@ -896,12 +1247,14 @@ export function ModularMapCanvas({
                 );
 
                 for (const cell of sortedCells) {
+                  const internalPath = editorState.pathsByCell[cellKey(cell)];
+                  const hasIndoor = internalPath?.material === 'indoor';
                   if (viewMode === '2d') {
                     drawTopDownTile(
                       graphics,
                       cell,
-                      isSelected ? 0xffffff : colors.top,
-                      1,
+                      isSelected ? 0xffffff : hasIndoor ? 0xe7d7b5 : colors.top,
+                      isSelected ? 1 : templateBuildingAlpha,
                       isSelected ? 0x334155 : 0x2b3642,
                     );
                   } else {
@@ -909,7 +1262,7 @@ export function ModularMapCanvas({
                       graphics,
                       cell,
                       editorState.grid,
-                      isSelected ? 0xffffff : colors.top,
+                      isSelected ? 0xffffff : hasIndoor ? 0xe7d7b5 : colors.top,
                       isSelected ? 0xd6e5f6 : colors.left,
                       isSelected ? 0xb6c9dd : colors.right,
                     );
