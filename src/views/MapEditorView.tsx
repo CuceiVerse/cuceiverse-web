@@ -267,8 +267,11 @@ export function MapEditorView() {
       const response = await saveModularMapLayout(token, payload);
       const nextPayload = JSON.stringify(response.data, null, 2);
       lastSavedPayloadRef.current = nextPayload;
+      const whereLabel = response.meta.source === 'db'
+        ? 'DB'
+        : 'filesystem (no persistente en redeploy)';
       setMessage(
-        `Layout modular guardado: ${response.data.buildings.length} edificios, ${response.data.paths.length} pasillos y ${response.data.props.length} props.`,
+        `Layout modular guardado en ${whereLabel}: ${response.data.buildings.length} edificios, ${response.data.paths.length} pasillos y ${response.data.props.length} props.`,
       );
     } catch (error: unknown) {
       setMessage(error instanceof Error ? error.message : 'No se pudo guardar el layout modular.');
@@ -308,8 +311,11 @@ export function MapEditorView() {
       const response = await saveModularMapLayout(token, current);
       const nextPayload = JSON.stringify(response.data, null, 2);
       lastSavedPayloadRef.current = nextPayload;
+      const whereLabel = response.meta.source === 'db'
+        ? 'DB'
+        : 'filesystem (no persistente en redeploy)';
       setMessage(
-        `Semilla remota sobrescrita: backend actualizado (${response.meta.savedAt}).`,
+        `Semilla remota sobrescrita en ${whereLabel}: backend actualizado (${response.meta.savedAt}).`,
       );
     } catch (error: unknown) {
       setMessage(

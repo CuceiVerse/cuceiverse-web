@@ -44,7 +44,10 @@ type AvatarWalkResult = {
 export function useAvatarWalk(
   pathCellsSet: ReadonlySet<string>,
 ): AvatarWalkResult {
-  const [position, setPosition] = useState<{ x: number; y: number }>(AVATAR_ORIGIN);
+  const [position, setPosition] = useState<{ x: number; y: number }>(() => ({
+    x: AVATAR_ORIGIN.x + 0.5,
+    y: AVATAR_ORIGIN.y + 0.5,
+  }));
   const [isMoving, setIsMoving] = useState(false);
   const [habboDirection, setHabboDirection] = useState(2); // default facing SE
   const [walkFrame, setWalkFrame] = useState(0);
@@ -69,10 +72,12 @@ export function useAvatarWalk(
 
   const walk = useCallback(
     (target: GridCell) => {
-      // Snap to integer cell
+      // Convert fractional (centered) coords back into integer cell coords.
+      // Our convention is: cell centers are (cell.x + 0.5, cell.y + 0.5).
+      // Using Math.round(position.x) would incorrectly jump at .5 boundaries.
       const currentCell: GridCell = {
-        x: Math.round(position.x),
-        y: Math.round(position.y),
+        x: Math.round(position.x - 0.5),
+        y: Math.round(position.y - 0.5),
       };
 
       const snappedStart = snapToPathTile(currentCell, pathCellsSet);

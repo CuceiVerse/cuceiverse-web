@@ -403,7 +403,12 @@ export function ModularReadOnlyMap() {
           return;
         }
         setLayout(response.data);
-        setStatus(formatMapUpdatedLabel(response.meta.savedAt));
+        const updatedLabel = formatMapUpdatedLabel(response.meta.savedAt);
+        if (response.meta.source === 'filesystem') {
+          setStatus(`${updatedLabel} (cargado desde filesystem)`);
+        } else {
+          setStatus(updatedLabel);
+        }
       })
       .catch(() => {
         if (cancelled) {
@@ -562,6 +567,11 @@ export function ModularReadOnlyMap() {
     if (!trimmed || trimmed.startsWith('http') || trimmed.startsWith('/')) return undefined;
     if (!trimmed.includes('.') || !trimmed.includes('-')) return undefined;
 
+    // Use GIF while walking to avoid swapping PNG frames every ~120ms.
+    // This prevents visible flicker (accessories blinking) when the renderer/cache
+    // can’t keep up with many rapid per-frame requests.
+    const isGif = avatarIsMoving;
+
     const params = new URLSearchParams({
       figure: trimmed,
       size: 'n',                                        // normal size sprite
@@ -569,8 +579,8 @@ export function ModularReadOnlyMap() {
       head_direction: String(habboDirection),
       action: avatarIsMoving ? 'wlk' : 'std',          // walking or idle pose
       gesture: 'std',
-      frame_num: String(walkFrame),                    // cycle frames 0-3
-      img_format: 'png',
+      ...(isGif ? {} : { frame_num: String(walkFrame) }),
+      img_format: isGif ? 'gif' : 'png',
     });
     return `/habbo-api/render?${params.toString()}`;
   }, [userAvatarUrl, habboDirection, walkFrame, avatarIsMoving]);
@@ -582,7 +592,6 @@ export function ModularReadOnlyMap() {
     if (!trimmed || trimmed.startsWith('http') || trimmed.startsWith('/') || !trimmed.includes('.') || !trimmed.includes('-')) return;
 
     const directions = [0, 1, 2, 3, 4, 5, 6, 7];
-    const walkingFrames = [0, 1, 2, 3];
 
     // Pre-load each direction and action
     directions.forEach(dir => {
@@ -599,20 +608,17 @@ export function ModularReadOnlyMap() {
       });
       new Image().src = `/habbo-api/render?${idleParams.toString()}`;
 
-      // 2. Walking frames
-      walkingFrames.forEach(fn => {
-        const walkParams = new URLSearchParams({
-          figure: trimmed,
-          size: 'n',
-          direction: String(dir),
-          head_direction: String(dir),
-          action: 'wlk',
-          gesture: 'std',
-          frame_num: String(fn),
-          img_format: 'png',
-        });
-        new Image().src = `/habbo-api/render?${walkParams.toString()}`;
+      // 2. Walking animation (GIF)
+      const walkParams = new URLSearchParams({
+        figure: trimmed,
+        size: 'n',
+        direction: String(dir),
+        head_direction: String(dir),
+        action: 'wlk',
+        gesture: 'std',
+        img_format: 'gif',
       });
+      new Image().src = `/habbo-api/render?${walkParams.toString()}`;
     });
     console.log(`[AvatarPreloader] Batch pre-loading initiated for: ${trimmed}`);
   }, [userAvatarUrl]);
