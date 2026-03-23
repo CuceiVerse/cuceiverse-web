@@ -1,10 +1,12 @@
-import { Application, extend } from '@pixi/react';
+﻿import { Application, extend } from '@pixi/react';
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -19,6 +21,7 @@ import {
   screenToIsoGrid,
   type EditorCamera,
 } from '../editor/isometricGridMath';
+import { resolveAvatarImage } from '../../../lib/avatarImage';
 import type {
   BlockFootprint,
   GridCell,
@@ -61,14 +64,22 @@ type Props = {
   onPlaceBuildingBlock: (cell: GridCell) => void;
   onPlaceProp: (cell: GridCell) => void;
   viewMode?: 'isometric' | '2d';
-  /** Polilínea de la ruta recomendada principal (coordenadas de grid). */
+  /** PolilÃ­nea de la ruta recomendada principal (coordenadas de grid). */
   routePolyline?: Array<{ x: number; y: number }>;
-  /** Polilíneas de rutas alternativas (coordenadas de grid). */
+  /** PolilÃ­neas de rutas alternativas (coordenadas de grid). */
   altPolylines?: Array<Array<{ x: number; y: number }>>;
   /** Callback when the user left-clicks a cell in pan/viewer mode. */
   onCellClick?: (cell: GridCell) => void;
   /** Avatar position in fractional grid coordinates (e.g. {x:24.5, y:20.5}). */
   avatarPosition?: { x: number; y: number };
+  /** Mutable avatar position ref for smooth imperative movement. */
+  avatarPositionRef?: MutableRefObject<{ x: number; y: number }>;
+  /** Extracted Habbo figure string for safe motion rendering. */
+  avatarFigure?: string;
+  /** Current raw Habbo direction from movement logic. */
+  avatarDirection?: number;
+  /** Whether the avatar is actively walking. */
+  avatarIsMoving?: boolean;
   /** Avatar Habbo image URL (optional, falls back to a colored circle). */
   avatarImageUrl?: string;
 
@@ -84,9 +95,10 @@ const BUILDING_ELEVATION = 16;
 const MIN_ZOOM = 0.05;
 const MAX_ZOOM = 3;
 
-const AVATAR_BUBBLE_ZOOM_THRESHOLD = 0.45;
-const AVATAR_BUBBLE_SIZE_PX = 44;
-const DEVICE_PIXEL_RATIO = typeof window === 'undefined' ? 1 : Math.max(1, window.devicePixelRatio || 1);
+const DEVICE_PIXEL_RATIO =
+  typeof window === 'undefined'
+    ? 1
+    : Math.min(2, Math.max(1, window.devicePixelRatio || 1));
 const TILE_2D_SIZE = 26;
 
 function isEditableElement(target: EventTarget | null): boolean {
@@ -198,6 +210,70 @@ function gridToWorld(
     };
   }
   return isoGridToScreen(cell, grid);
+}
+
+function gridPositionToWorld(
+  position: { x: number; y: number },
+  grid: Props['editorState']['grid'],
+  viewMode: Props['viewMode'],
+) {
+  if (viewMode === '2d') {
+    return {
+      x: position.x * TILE_2D_SIZE,
+      y: position.y * TILE_2D_SIZE,
+    };
+  }
+
+  return isoGridToScreen(position, grid);
+}
+
+function getAvatarIdleDirection(viewMode: Props['viewMode']): number {
+  return viewMode === '2d' ? 2 : 3;
+}
+
+function getAvatarPose(
+  viewMode: Props['viewMode'],
+  rawDirection: number | undefined,
+  isMoving: boolean,
+  frame: number,
+): { direction: number; mirror: boolean; action: 'std' | 'wlk'; frame: number } {
+  const fallbackDirection = getAvatarIdleDirection(viewMode);
+
+  if (!isMoving) {
+    return {
+      direction: fallbackDirection,
+      mirror: false,
+      action: 'std',
+      frame: 0,
+    };
+  }
+
+  if (viewMode === '2d') {
+    switch (rawDirection) {
+      case 6:
+        return { direction: 2, mirror: true, action: 'wlk', frame };
+      case 0:
+        return { direction: 1, mirror: false, action: 'wlk', frame };
+      case 4:
+        return { direction: 3, mirror: false, action: 'wlk', frame };
+      case 2:
+      default:
+        return { direction: 2, mirror: false, action: 'wlk', frame };
+    }
+  }
+
+  switch (rawDirection) {
+    case 1:
+      return { direction: 1, mirror: false, action: 'wlk', frame };
+    case 3:
+      return { direction: 3, mirror: false, action: 'wlk', frame };
+    case 5:
+      return { direction: 3, mirror: true, action: 'wlk', frame };
+    case 7:
+      return { direction: 1, mirror: true, action: 'wlk', frame };
+    default:
+      return { direction: fallbackDirection, mirror: false, action: 'wlk', frame };
+  }
 }
 
 function drawGridTile(
@@ -341,6 +417,16 @@ function getPropLabel(prop: { kind: PropKind; metadata?: Record<string, string> 
     : '';
 }
 
+function isSameCell(left: GridCell | null, right: GridCell | null): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return left.x === right.x && left.y === right.y;
+}
+
 export function ModularMapCanvas({
   editorState,
   onDropPaletteItem,
@@ -358,6 +444,10 @@ export function ModularMapCanvas({
   altPolylines = [],
   onCellClick,
   avatarPosition,
+  avatarPositionRef,
+  avatarFigure,
+  avatarDirection,
+  avatarIsMoving = false,
   avatarImageUrl,
   templateUnderlayEnabled = false,
 }: Props) {
@@ -478,7 +568,19 @@ export function ModularMapCanvas({
   const templateBuildingAlpha = devUnderlayTexture && devUnderlayVisible ? 0.75 : 1;
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const avatarOverlayRef = useRef<HTMLDivElement | null>(null);
+  const avatarVisualRef = useRef<HTMLElement | null>(null);
+  const avatarBubbleRef = useRef<HTMLDivElement | null>(null);
+  const avatarBubbleVisualRef = useRef<HTMLElement | null>(null);
+  const avatarOverlayFrameRef = useRef(0);
+  const avatarMotionFrameRef = useRef(0);
+  const avatarMotionTimerRef = useRef<number | null>(null);
+  const worldContainerRef = useRef<Container | null>(null);
+  const overlayContainerRef = useRef<Container | null>(null);
   const didMeasureViewportRef = useRef(false);
+  const cameraRef = useRef<EditorCamera | null>(null);
+  const pendingCameraRef = useRef<EditorCamera | null>(null);
+  const cameraFrameRef = useRef(0);
   const panRef = useRef<{
     pointerX: number;
     pointerY: number;
@@ -517,11 +619,52 @@ export function ModularMapCanvas({
   const didAutoFitRef = useRef(false);
   const lastAutoFitModeRef = useRef<NonNullable<Props['viewMode']> | undefined>(undefined);
 
+  const applyCameraTransform = useCallback((nextCamera: EditorCamera) => {
+    cameraRef.current = nextCamera;
+    const worldContainer = worldContainerRef.current;
+    if (worldContainer) {
+      worldContainer.position.set(nextCamera.x, nextCamera.y);
+      worldContainer.scale.set(nextCamera.scale, nextCamera.scale);
+    }
+
+    const overlayContainer = overlayContainerRef.current;
+    if (overlayContainer) {
+      overlayContainer.position.set(nextCamera.x, nextCamera.y);
+      overlayContainer.scale.set(nextCamera.scale, nextCamera.scale);
+    }
+  }, []);
+
+  const scheduleCameraUpdate = useCallback(
+    (updater: EditorCamera | ((current: EditorCamera) => EditorCamera)) => {
+      const current = pendingCameraRef.current ?? cameraRef.current ?? camera;
+      pendingCameraRef.current = typeof updater === 'function' ? updater(current) : updater;
+
+      if (cameraFrameRef.current) {
+        return;
+      }
+
+      cameraFrameRef.current = requestAnimationFrame(() => {
+        cameraFrameRef.current = 0;
+        const next = pendingCameraRef.current;
+        pendingCameraRef.current = null;
+        if (!next) {
+          return;
+        }
+        applyCameraTransform(next);
+      });
+    },
+    [applyCameraTransform, camera],
+  );
+
   const campusBounds = useMemo(() => {
     return viewMode === '2d'
       ? get2DCampusBounds(editorState.grid)
       : getIsoCampusBounds(editorState.grid);
   }, [viewMode, editorState.grid]);
+
+  useEffect(() => {
+    applyCameraTransform(camera);
+  }, [applyCameraTransform, camera]);
 
   // Inicializar la base una sola vez cuando exista textura.
   useEffect(() => {
@@ -645,11 +788,13 @@ export function ModularMapCanvas({
     }
     const modeChanged = lastAutoFitModeRef.current !== viewMode;
     if (!didAutoFitRef.current || modeChanged) {
-      setCamera(fitCameraToBounds(viewportSize, campusBounds));
+      const nextCamera = fitCameraToBounds(viewportSize, campusBounds);
+      applyCameraTransform(nextCamera);
+      setCamera(nextCamera);
       didAutoFitRef.current = true;
       lastAutoFitModeRef.current = viewMode;
     }
-  }, [viewportSize.width, viewportSize.height, viewMode, campusBounds]);
+  }, [applyCameraTransform, viewportSize.width, viewportSize.height, viewMode, campusBounds]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -664,7 +809,7 @@ export function ModularMapCanvas({
       const localX = event.clientX - rect.left;
       const localY = event.clientY - rect.top;
 
-      setCamera((current) => {
+      scheduleCameraUpdate((current) => {
         const nextScale = clamp(current.scale - event.deltaY * 0.0012, MIN_ZOOM, MAX_ZOOM);
         const worldX = (localX - current.x) / current.scale;
         const worldY = (localY - current.y) / current.scale;
@@ -680,6 +825,14 @@ export function ModularMapCanvas({
 
     return () => {
       viewport.removeEventListener('wheel', handleZoom);
+    };
+  }, [scheduleCameraUpdate]);
+
+  useEffect(() => {
+    return () => {
+      if (cameraFrameRef.current) {
+        cancelAnimationFrame(cameraFrameRef.current);
+      }
     };
   }, []);
 
@@ -715,11 +868,16 @@ export function ModularMapCanvas({
     return set;
   }, [editorState.propsById]);
 
+  const updateHoverCell = useCallback((nextCell: GridCell | null) => {
+    setHoverCell((current) => (isSameCell(current, nextCell) ? current : nextCell));
+  }, []);
+
   const toGridCell = (event: { clientX: number; clientY: number }, currentTarget: HTMLDivElement) => {
     const rect = currentTarget.getBoundingClientRect();
+    const currentCamera = cameraRef.current ?? camera;
     if (viewMode === '2d') {
-      const worldX = (event.clientX - rect.left - camera.x) / camera.scale;
-      const worldY = (event.clientY - rect.top - camera.y) / camera.scale;
+      const worldX = (event.clientX - rect.left - currentCamera.x) / currentCamera.scale;
+      const worldY = (event.clientY - rect.top - currentCamera.y) / currentCamera.scale;
       return {
         x: Math.floor(worldX / TILE_2D_SIZE),
         y: Math.floor(worldY / TILE_2D_SIZE),
@@ -728,7 +886,7 @@ export function ModularMapCanvas({
     return screenToIsoGrid(
       event.clientX - rect.left,
       event.clientY - rect.top,
-      camera,
+      currentCamera,
       editorState.grid,
     );
   };
@@ -772,11 +930,12 @@ export function ModularMapCanvas({
 
   const handleMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
     if ((isSpacePressed || editorState.activeTool === 'pan') && event.button === 0) {
+      const currentCamera = cameraRef.current ?? camera;
       panRef.current = {
         pointerX: event.clientX,
         pointerY: event.clientY,
-        cameraX: camera.x,
-        cameraY: camera.y,
+        cameraX: currentCamera.x,
+        cameraY: currentCamera.y,
       };
       panStartPosRef.current = { x: event.clientX, y: event.clientY };
       setIsPanning(true);
@@ -784,7 +943,7 @@ export function ModularMapCanvas({
     }
 
     const cell = toGridCell(event, event.currentTarget);
-    setHoverCell(cell);
+    updateHoverCell(cell);
 
     if (event.button !== 0) {
       return;
@@ -835,6 +994,7 @@ export function ModularMapCanvas({
       activeTouchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
       if (activeTouchPointersRef.current.size >= 2) {
+        const currentCamera = cameraRef.current ?? camera;
         const points = Array.from(activeTouchPointersRef.current.values());
         const a = points[0];
         const b = points[1];
@@ -850,11 +1010,11 @@ export function ModularMapCanvas({
 
         pinchRef.current = {
           initialDistance: distance,
-          initialScale: camera.scale,
-          initialCameraX: camera.x,
-          initialCameraY: camera.y,
-          initialWorldX: (localX - camera.x) / camera.scale,
-          initialWorldY: (localY - camera.y) / camera.scale,
+          initialScale: currentCamera.scale,
+          initialCameraX: currentCamera.x,
+          initialCameraY: currentCamera.y,
+          initialWorldX: (localX - currentCamera.x) / currentCamera.scale,
+          initialWorldY: (localY - currentCamera.y) / currentCamera.scale,
         };
 
         setIsPanning(true);
@@ -865,11 +1025,12 @@ export function ModularMapCanvas({
 
       // Pan con 1 dedo solo cuando el tool sea pan.
       if (editorState.activeTool === 'pan') {
+        const currentCamera = cameraRef.current ?? camera;
         panRef.current = {
           pointerX: event.clientX,
           pointerY: event.clientY,
-          cameraX: camera.x,
-          cameraY: camera.y,
+          cameraX: currentCamera.x,
+          cameraY: currentCamera.y,
         };
         panStartPosRef.current = { x: event.clientX, y: event.clientY };
         setIsPanning(true);
@@ -888,7 +1049,7 @@ export function ModularMapCanvas({
   const handleMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
     const pan = panRef.current;
     if (pan && (isSpacePressed || editorState.activeTool === 'pan') && isPanning) {
-      setCamera((current) => ({
+      scheduleCameraUpdate((current) => ({
         ...current,
         x: pan.cameraX + (event.clientX - pan.pointerX),
         y: pan.cameraY + (event.clientY - pan.pointerY),
@@ -897,7 +1058,7 @@ export function ModularMapCanvas({
     }
 
     const cell = toGridCell(event, event.currentTarget);
-    setHoverCell(cell);
+    updateHoverCell(cell);
 
     if (brushActiveRef.current && editorState.activeTool === 'path-brush') {
       onPathBrushMove(cell);
@@ -949,7 +1110,7 @@ export function ModularMapCanvas({
         const rawScale = pinch.initialScale * (distance / pinch.initialDistance);
         const nextScale = clamp(rawScale, MIN_ZOOM, MAX_ZOOM);
 
-        setCamera({
+        scheduleCameraUpdate({
           x: localX - pinch.initialWorldX * nextScale,
           y: localY - pinch.initialWorldY * nextScale,
           scale: nextScale,
@@ -960,7 +1121,7 @@ export function ModularMapCanvas({
       // Pan con 1 dedo
       const pan = panRef.current;
       if (pan && editorState.activeTool === 'pan' && isPanning) {
-        setCamera((current) => ({
+        scheduleCameraUpdate((current) => ({
           ...current,
           x: pan.cameraX + (event.clientX - pan.pointerX),
           y: pan.cameraY + (event.clientY - pan.pointerY),
@@ -1034,7 +1195,7 @@ export function ModularMapCanvas({
       const cell = toGridCell(event, event.currentTarget);
       onDropPaletteItem(payload, cell);
     } catch {
-      // Ignorar payload inválido del drag externo.
+      // Ignorar payload invÃ¡lido del drag externo.
     }
   };
 
@@ -1042,36 +1203,597 @@ export function ModularMapCanvas({
     event.preventDefault();
     event.dataTransfer.dropEffect = 'copy';
     const cell = toGridCell(event, event.currentTarget);
-    setHoverCell(cell);
+    updateHoverCell(cell);
   };
 
   const selectedBuildingId = editorState.selection?.kind === 'building' ? editorState.selection.id : null;
   const selectedPropId = editorState.selection?.kind === 'prop' ? editorState.selection.id : null;
+  const renderCamera = cameraRef.current ?? camera;
   const canvasCursorClass = isPanning
     ? 'modular-canvas-shell--grabbing'
     : (isSpacePressed || editorState.activeTool === 'pan')
       ? 'modular-canvas-shell--grab'
       : 'modular-canvas-shell--tool';
+  const syncAvatarVisuals = useCallback(() => {
+    const mainVisual = avatarVisualRef.current;
+    const bubbleVisual = avatarBubbleVisualRef.current;
 
-  // Compute avatar screen position from fractional grid coords + camera
-  const avatarScreenPos = (() => {
-    if (!avatarPosition) return null;
-    const world = viewMode === '2d'
-      ? { x: avatarPosition.x * TILE_2D_SIZE, y: avatarPosition.y * TILE_2D_SIZE }
-      : isoGridToScreen(avatarPosition, editorState.grid);
-    return {
-      x: world.x * camera.scale + camera.x,
-      y: world.y * camera.scale + camera.y,
+    if (!mainVisual && !bubbleVisual) {
+      return;
+    }
+
+    const pose = getAvatarPose(viewMode, avatarDirection, avatarIsMoving, avatarMotionFrameRef.current);
+    const nextSrc =
+      avatarFigure
+        ? resolveAvatarImage(avatarFigure, {
+            size: 'n',
+            direction: pose.direction,
+            headDirection: pose.direction,
+            action: pose.action,
+            gesture: 'std',
+            format: 'png',
+            frame: pose.frame,
+          })
+        : avatarImageUrl ?? null;
+
+    const mainTransform = `translate3d(-50%, -100%, 0) scaleX(${pose.mirror ? -1 : 1})`;
+    const bubbleTransform = `scaleX(${pose.mirror ? -1 : 1})`;
+
+    if (mainVisual instanceof HTMLImageElement) {
+      if (nextSrc && mainVisual.getAttribute('src') !== nextSrc) {
+        mainVisual.src = nextSrc;
+      }
+      mainVisual.style.transform = mainTransform;
+    } else if (mainVisual) {
+      mainVisual.style.transform = 'translate3d(-50%, -100%, 0)';
+    }
+
+    if (bubbleVisual instanceof HTMLImageElement) {
+      if (nextSrc && bubbleVisual.getAttribute('src') !== nextSrc) {
+        bubbleVisual.src = nextSrc;
+      }
+      bubbleVisual.style.transform = bubbleTransform;
+    } else if (bubbleVisual) {
+      bubbleVisual.style.transform = 'scaleX(1)';
+    }
+  }, [avatarDirection, avatarFigure, avatarImageUrl, avatarIsMoving, viewMode]);
+
+  useEffect(() => {
+    avatarMotionFrameRef.current = 0;
+    syncAvatarVisuals();
+
+    if (avatarMotionTimerRef.current !== null) {
+      window.clearInterval(avatarMotionTimerRef.current);
+      avatarMotionTimerRef.current = null;
+    }
+
+    if (!avatarIsMoving || !avatarFigure) {
+      return () => undefined;
+    }
+
+    const frames = [0, 1, 2, 1];
+    let frameIndex = 0;
+
+    avatarMotionTimerRef.current = window.setInterval(() => {
+      frameIndex = (frameIndex + 1) % frames.length;
+      avatarMotionFrameRef.current = frames[frameIndex];
+      syncAvatarVisuals();
+    }, 140);
+
+    return () => {
+      if (avatarMotionTimerRef.current !== null) {
+        window.clearInterval(avatarMotionTimerRef.current);
+        avatarMotionTimerRef.current = null;
+      }
     };
-  })();
+  }, [avatarFigure, avatarIsMoving, avatarDirection, syncAvatarVisuals]);
 
-  const avatarCellSizePx = Math.max(
-    1,
-    Math.round(
-      (viewMode === '2d' ? TILE_2D_SIZE : editorState.grid.tileHeight) * camera.scale,
-    ),
-  );
-  const showAvatarBubble = Boolean(avatarScreenPos) && camera.scale <= AVATAR_BUBBLE_ZOOM_THRESHOLD;
+  const syncAvatarOverlay = useCallback(() => {
+    const overlay = avatarOverlayRef.current;
+    const visual = avatarVisualRef.current;
+    const bubble = avatarBubbleRef.current;
+    const bubbleVisual = avatarBubbleVisualRef.current;
+
+    if (!overlay || !visual || !bubble || !bubbleVisual) {
+      return;
+    }
+
+    const nextAvatarPosition = avatarPositionRef?.current ?? avatarPosition;
+    if (!nextAvatarPosition) {
+      overlay.style.opacity = '0';
+      return;
+    }
+
+    const currentCamera = cameraRef.current ?? camera;
+    const avatarWorldPoint = gridPositionToWorld(nextAvatarPosition, editorState.grid, viewMode);
+    const screenX = avatarWorldPoint.x * currentCamera.scale + currentCamera.x;
+    const screenY = avatarWorldPoint.y * currentCamera.scale + currentCamera.y;
+    const avatarScreenHeight = Math.max(
+      16,
+      (viewMode === '2d' ? TILE_2D_SIZE * 1.6 : 72) * currentCamera.scale,
+    );
+    const bubbleSize = Math.max(34, Math.min(62, 42 + currentCamera.scale * 16));
+    const bubbleInsetSize = Math.max(22, bubbleSize * 0.62);
+    const bubbleOffset = Math.max(10, avatarScreenHeight * 0.34);
+    const showBubble = currentCamera.scale <= (viewMode === '2d' ? 0.65 : 0.55);
+
+    overlay.style.opacity = '1';
+    overlay.style.transform = `translate3d(${screenX}px, ${screenY}px, 0)`;
+    visual.style.height = `${avatarScreenHeight}px`;
+    visual.style.display = showBubble ? 'none' : 'block';
+    if (visual instanceof HTMLDivElement) {
+      visual.style.width = `${Math.max(10, avatarScreenHeight * 0.58)}px`;
+    }
+
+    bubble.style.display = showBubble ? 'block' : 'none';
+    bubble.style.transform = `translate3d(-50%, calc(-100% - ${bubbleOffset}px), 0)`;
+    bubble.style.width = `${bubbleSize}px`;
+    bubble.style.height = `${bubbleSize}px`;
+    bubbleVisual.style.width = `${bubbleInsetSize}px`;
+    bubbleVisual.style.height = `${bubbleInsetSize}px`;
+  }, [avatarPosition, avatarPositionRef, camera, editorState.grid, viewMode]);
+
+  useEffect(() => {
+    const tick = () => {
+      syncAvatarOverlay();
+      avatarOverlayFrameRef.current = requestAnimationFrame(tick);
+    };
+
+    tick();
+
+    return () => {
+      cancelAnimationFrame(avatarOverlayFrameRef.current);
+      avatarOverlayFrameRef.current = 0;
+    };
+  }, [syncAvatarOverlay]);
+
+  const drawScene = useCallback((graphics: Graphics) => {
+    graphics.clear();
+
+    for (let row = 0; row < editorState.grid.rows; row += 1) {
+      for (let column = 0; column < editorState.grid.columns; column += 1) {
+        if (!editorState.areaCellsByKey[`${column}:${row}`]) {
+          continue;
+        }
+
+        const path = editorState.pathsByCell[`${column}:${row}`];
+        const fill = path
+          ? path.material === 'pavers'
+            ? 0xd8d0bc
+            : path.material === 'grass-transition'
+              ? 0x8cb989
+              : path.material === 'indoor'
+                ? 0xe7d7b5
+                : 0xc8cfd8
+          : (column + row) % 2 === 0
+            ? 0x86c56e
+            : 0x7bb864;
+        const stroke = path ? 0x6f7f8e : 0x5e8b4c;
+        if (viewMode === '2d') {
+          drawTopDownTile(
+            graphics,
+            { x: column, y: row },
+            fill,
+            templateTileAlpha,
+            stroke,
+          );
+        } else {
+          drawGridTile(graphics, { x: column, y: row }, editorState.grid, fill, 1, stroke);
+        }
+      }
+    }
+
+    for (const building of buildings) {
+      const colors = getBuildingColors(building.type);
+      const isSelected = selectedBuildingId === building.id;
+      const sortedCells = [...building.occupiedCells].sort(
+        (left, right) => left.x + left.y - (right.x + right.y) || left.y - right.y,
+      );
+
+      for (const cell of sortedCells) {
+        const internalPath = editorState.pathsByCell[cellKey(cell)];
+        const hasIndoor = internalPath?.material === 'indoor';
+        if (viewMode === '2d') {
+          drawTopDownTile(
+            graphics,
+            cell,
+            isSelected ? 0xffffff : hasIndoor ? 0xe7d7b5 : colors.top,
+            isSelected ? 1 : templateBuildingAlpha,
+            isSelected ? 0x334155 : 0x2b3642,
+          );
+        } else {
+          drawRaisedTile(
+            graphics,
+            cell,
+            editorState.grid,
+            isSelected ? 0xffffff : hasIndoor ? 0xe7d7b5 : colors.top,
+            isSelected ? 0xd6e5f6 : colors.left,
+            isSelected ? 0xb6c9dd : colors.right,
+          );
+        }
+      }
+    }
+
+    for (const prop of props) {
+      const world = gridToWorld(prop.cell, editorState.grid, viewMode);
+      const centerX = viewMode === '2d' ? world.x + TILE_2D_SIZE / 2 : world.x;
+      const centerY = viewMode === '2d' ? world.y + TILE_2D_SIZE / 2 : world.y - 4;
+      const selected = selectedPropId === prop.id;
+
+      if (prop.kind === 'poi') {
+        const radiusCells = Number(prop.metadata?.interestRadius ?? '0');
+        if (Number.isFinite(radiusCells) && radiusCells > 0) {
+          if (viewMode === '2d') {
+            const radiusPx = radiusCells * TILE_2D_SIZE;
+            graphics.setFillStyle({ color: 0xd35c82, alpha: 0.12 });
+            graphics.circle(centerX, centerY, radiusPx);
+            graphics.fill();
+            graphics.setStrokeStyle({ color: 0xf9a8d4, width: 1.2, alpha: 0.5 });
+            graphics.circle(centerX, centerY, radiusPx);
+            graphics.stroke();
+          } else {
+            const eastWorld = gridToWorld(
+              { x: prop.cell.x + radiusCells, y: prop.cell.y },
+              editorState.grid,
+              viewMode,
+            );
+            const southWorld = gridToWorld(
+              { x: prop.cell.x, y: prop.cell.y + radiusCells },
+              editorState.grid,
+              viewMode,
+            );
+            const radiusX = Math.max(8, Math.abs(eastWorld.x - world.x));
+            const radiusY = Math.max(6, Math.abs(southWorld.y - world.y));
+            graphics.setFillStyle({ color: 0xd35c82, alpha: 0.1 });
+            graphics.ellipse(centerX, centerY, radiusX, radiusY);
+            graphics.fill();
+            graphics.setStrokeStyle({ color: 0xf9a8d4, width: 1.1, alpha: 0.45 });
+            graphics.ellipse(centerX, centerY, radiusX, radiusY);
+            graphics.stroke();
+          }
+        }
+      }
+
+      if (prop.kind === 'track') {
+        drawTrackTile(graphics, prop.cell, editorState.grid, selected, viewMode);
+        continue;
+      }
+
+      if (prop.kind === 'park') {
+        graphics.setFillStyle({ color: 0x16a34a, alpha: 0.95 });
+        graphics.circle(centerX, centerY, selected ? 9 : 7);
+        graphics.fill();
+        graphics.setStrokeStyle({ color: 0x14532d, width: 2, alpha: 0.85 });
+        graphics.circle(centerX, centerY, selected ? 9 : 7);
+        graphics.stroke();
+        graphics.setFillStyle({ color: 0xbbf7d0, alpha: 0.95 });
+        graphics.circle(centerX, centerY - 1, selected ? 4 : 3);
+        graphics.fill();
+        continue;
+      }
+
+      if (prop.kind === 'access-vehicular') {
+        const size = selected ? 12 : 10;
+        const half = size / 2;
+        graphics.setFillStyle({ color: 0xf59e0b, alpha: 0.96 });
+        graphics.roundRect(centerX - half, centerY - half, size, size, 2);
+        graphics.fill();
+        graphics.setStrokeStyle({ color: 0x78350f, width: 2, alpha: 0.9 });
+        graphics.roundRect(centerX - half, centerY - half, size, size, 2);
+        graphics.stroke();
+        graphics.setStrokeStyle({ color: 0xfffbeb, width: 1.5, alpha: 0.95 });
+        graphics.moveTo(centerX, centerY - half + 2);
+        graphics.lineTo(centerX, centerY + half - 2);
+        graphics.stroke();
+        graphics.setStrokeStyle({ color: 0xfffbeb, width: 1.5, alpha: 0.95 });
+        graphics.moveTo(centerX - half + 2, centerY);
+        graphics.lineTo(centerX + half - 2, centerY);
+        graphics.stroke();
+        continue;
+      }
+
+      if (prop.kind === 'access-pedestrian') {
+        const radius = selected ? 8 : 6.5;
+        graphics.setFillStyle({ color: 0x22c55e, alpha: 0.95 });
+        graphics.circle(centerX, centerY, radius);
+        graphics.fill();
+        graphics.setStrokeStyle({ color: 0x14532d, width: 2, alpha: 0.9 });
+        graphics.circle(centerX, centerY, radius);
+        graphics.stroke();
+        graphics.setStrokeStyle({ color: 0xecfdf5, width: 1.4, alpha: 0.95 });
+        graphics.moveTo(centerX, centerY - radius + 2);
+        graphics.lineTo(centerX, centerY + radius - 2);
+        graphics.stroke();
+        continue;
+      }
+
+      if (prop.kind === 'asphalt') {
+        const width = viewMode === '2d' ? TILE_2D_SIZE : 0;
+        const height = viewMode === '2d' ? TILE_2D_SIZE : 0;
+        const halfW = width / 2;
+        const halfH = height / 2;
+
+        const neighbors = {
+          east: asphaltCells.has(cellKey({ x: prop.cell.x + 1, y: prop.cell.y })),
+          west: asphaltCells.has(cellKey({ x: prop.cell.x - 1, y: prop.cell.y })),
+          south: asphaltCells.has(cellKey({ x: prop.cell.x, y: prop.cell.y + 1 })),
+          north: asphaltCells.has(cellKey({ x: prop.cell.x, y: prop.cell.y - 1 })),
+        };
+
+        const connectors: Array<{ x: number; y: number; key: 'east' | 'west' | 'south' | 'north' }> = [];
+        for (const [key, deltaX, deltaY] of [
+          ['east', 1, 0],
+          ['west', -1, 0],
+          ['south', 0, 1],
+          ['north', 0, -1],
+        ] as const) {
+          if (!neighbors[key]) {
+            continue;
+          }
+          const neighbor = { x: prop.cell.x + deltaX, y: prop.cell.y + deltaY };
+          const neighborWorld = gridToWorld(neighbor, editorState.grid, viewMode);
+          const neighborX = viewMode === '2d' ? neighborWorld.x + TILE_2D_SIZE / 2 : neighborWorld.x;
+          const neighborY = viewMode === '2d' ? neighborWorld.y + TILE_2D_SIZE / 2 : neighborWorld.y - 4;
+          connectors.push({
+            key,
+            x: centerX + (neighborX - centerX) * 0.5,
+            y: centerY + (neighborY - centerY) * 0.5,
+          });
+        }
+
+        for (const connector of connectors) {
+          graphics.setStrokeStyle({ color: 0x334155, width: selected ? 7 : 6, alpha: 0.98 });
+          graphics.moveTo(centerX, centerY);
+          graphics.lineTo(connector.x, connector.y);
+          graphics.stroke();
+        }
+
+        if (viewMode === '2d') {
+          drawTopDownTile(graphics, prop.cell, 0x334155, 0.98, 0x0f172a);
+        } else {
+          drawGridTile(graphics, prop.cell, editorState.grid, 0x334155, 0.98, 0x0f172a);
+        }
+
+        const connectedCount = connectors.length;
+        const isHorizontal = neighbors.east && neighbors.west && !neighbors.north && !neighbors.south;
+        const isVertical = neighbors.north && neighbors.south && !neighbors.east && !neighbors.west;
+
+        graphics.setStrokeStyle({ color: 0xfacc15, width: 1.2, alpha: 0.9 });
+        if (isHorizontal || isVertical) {
+          const start = connectors.find((c) => c.key === (isHorizontal ? 'west' : 'north'));
+          const end = connectors.find((c) => c.key === (isHorizontal ? 'east' : 'south'));
+          if (start && end) {
+            graphics.moveTo(start.x, start.y);
+            graphics.lineTo(end.x, end.y);
+            graphics.stroke();
+          }
+        } else if (connectedCount === 2) {
+          graphics.moveTo(connectors[0].x, connectors[0].y);
+          graphics.lineTo(centerX, centerY);
+          graphics.lineTo(connectors[1].x, connectors[1].y);
+          graphics.stroke();
+        } else if (connectedCount >= 3) {
+          // En cruces y T evitamos dibujar "plus" amarillos en cada celda.
+        } else if (connectedCount === 1) {
+          graphics.moveTo(centerX, centerY);
+          graphics.lineTo(connectors[0].x, connectors[0].y);
+          graphics.stroke();
+        } else {
+          if (viewMode === '2d') {
+            graphics.moveTo(centerX - halfW + 2, centerY);
+            graphics.lineTo(centerX + halfW - 2, centerY);
+          }
+          graphics.stroke();
+        }
+
+        if (connectedCount > 0) {
+          if (viewMode === '2d') {
+            graphics.setStrokeStyle({ color: 0x1e293b, width: 1.0, alpha: 0.45 });
+            graphics.roundRect(centerX - halfW, centerY - halfH, width, height, 2);
+            graphics.stroke();
+          }
+        }
+        continue;
+      }
+
+      if (prop.kind === 'car') {
+        const bodyW = selected ? 16 : 14;
+        const bodyH = selected ? 9 : 8;
+        const halfW = bodyW / 2;
+        const halfH = bodyH / 2;
+        graphics.setFillStyle({ color: 0xef4444, alpha: 0.97 });
+        graphics.roundRect(centerX - halfW, centerY - halfH, bodyW, bodyH, 3);
+        graphics.fill();
+        graphics.setStrokeStyle({ color: 0x7f1d1d, width: 1.5, alpha: 0.9 });
+        graphics.roundRect(centerX - halfW, centerY - halfH, bodyW, bodyH, 3);
+        graphics.stroke();
+        graphics.setFillStyle({ color: 0x93c5fd, alpha: 0.95 });
+        graphics.roundRect(centerX - 3.5, centerY - 2.5, 7, 4.5, 1.5);
+        graphics.fill();
+        graphics.setFillStyle({ color: 0x0f172a, alpha: 0.95 });
+        graphics.circle(centerX - halfW + 3, centerY + halfH - 1, 1.4);
+        graphics.fill();
+        graphics.circle(centerX + halfW - 3, centerY + halfH - 1, 1.4);
+        graphics.fill();
+        continue;
+      }
+
+      if (prop.kind === 'motorcycle') {
+        const bodyW = selected ? 12 : 10;
+        const bodyH = selected ? 6 : 5;
+        const halfW = bodyW / 2;
+        const halfH = bodyH / 2;
+        graphics.setFillStyle({ color: 0xf97316, alpha: 0.98 });
+        graphics.roundRect(centerX - halfW, centerY - halfH, bodyW, bodyH, 2);
+        graphics.fill();
+        graphics.setStrokeStyle({ color: 0x9a3412, width: 1.4, alpha: 0.92 });
+        graphics.roundRect(centerX - halfW, centerY - halfH, bodyW, bodyH, 2);
+        graphics.stroke();
+        graphics.setFillStyle({ color: 0x1e293b, alpha: 0.95 });
+        graphics.circle(centerX - halfW + 1.6, centerY + halfH - 0.3, 1.2);
+        graphics.fill();
+        graphics.circle(centerX + halfW - 1.6, centerY + halfH - 0.3, 1.2);
+        graphics.fill();
+        graphics.setStrokeStyle({ color: 0xfef3c7, width: 1.0, alpha: 0.9 });
+        graphics.moveTo(centerX - 1.5, centerY - halfH + 0.8);
+        graphics.lineTo(centerX + 1.5, centerY - halfH + 0.8);
+        graphics.stroke();
+        continue;
+      }
+
+      const fill =
+        prop.kind === 'tree'
+          ? 0x2a8f4f
+          : prop.kind === 'bench'
+            ? 0xa77447
+            : prop.kind === 'bathroom'
+              ? 0x447bd4
+              : prop.kind === 'shrub'
+                ? 0xe6c84d
+                : prop.kind === 'trash'
+                  ? 0x6d7785
+                  : 0xe06a8a;
+      graphics.setFillStyle({ color: fill, alpha: 1 });
+      graphics.circle(centerX, centerY, selected ? 7 : 5);
+      graphics.fill();
+      graphics.setStrokeStyle({ color: 0x17202a, width: 2, alpha: 0.6 });
+      graphics.circle(centerX, centerY, selected ? 7 : 5);
+      graphics.stroke();
+    }
+
+    if (hoverCell) {
+      const hoverIsEnabled = Boolean(editorState.areaCellsByKey[cellKey(hoverCell)]);
+      const hoverBuildingId = getBuildingIdAtCell(hoverCell, editorState.blocksById);
+      const hoverColor =
+        editorState.activeTool === 'area-block'
+          ? 0x58a95a
+          : editorState.activeTool === 'building-block'
+            ? 0x4f78ff
+            : editorState.activeTool === 'path-brush'
+              ? 0x2d7f7a
+              : editorState.activeTool === 'erase'
+                ? 0xd34d4d
+                : editorState.activeTool === 'prop'
+                  ? 0x4f9464
+                  : hoverBuildingId
+                    ? 0xf2c65c
+                    : 0xffffff;
+
+      if (
+        editorState.activeTool === 'building-block' ||
+        editorState.activeTool === 'area-block'
+      ) {
+        const footprint =
+          editorState.activeTool === 'area-block'
+            ? editorState.activeAreaFootprint
+            : editorState.activeBuildingFootprint;
+
+        for (let y = 0; y < footprint.height; y += 1) {
+          for (let x = 0; x < footprint.width; x += 1) {
+            const previewCell = { x: hoverCell.x + x, y: hoverCell.y + y };
+            const shouldDrawPreview =
+              editorState.activeTool === 'area-block'
+                ? previewCell.x >= 0 && previewCell.y >= 0
+                : Boolean(editorState.areaCellsByKey[cellKey(previewCell)]);
+            if (!shouldDrawPreview) {
+              continue;
+            }
+
+            if (viewMode === '2d') {
+              drawTopDownTile(graphics, previewCell, hoverColor, 0.28, hoverColor);
+            } else {
+              drawGridTile(
+                graphics,
+                previewCell,
+                editorState.grid,
+                hoverColor,
+                0.28,
+                hoverColor,
+              );
+            }
+          }
+        }
+      } else if (hoverIsEnabled) {
+        if (viewMode === '2d') {
+          drawTopDownTile(graphics, hoverCell, hoverColor, 0.24, hoverColor);
+        } else {
+          drawGridTile(graphics, hoverCell, editorState.grid, hoverColor, 0.24, hoverColor);
+        }
+      }
+    }
+
+    for (const altPoly of altPolylines) {
+      if (altPoly.length < 2) {
+        continue;
+      }
+      const firstAlt = gridToWorld(altPoly[0], editorState.grid, viewMode);
+      graphics.setStrokeStyle({ color: 0x94a3b8, width: 3, alpha: 0.45 });
+      graphics.moveTo(firstAlt.x, firstAlt.y);
+      for (let i = 1; i < altPoly.length; i += 1) {
+        const pt = gridToWorld(altPoly[i], editorState.grid, viewMode);
+        graphics.lineTo(pt.x, pt.y);
+      }
+      graphics.stroke();
+    }
+
+    if (routePolyline.length >= 2) {
+      const firstPt = gridToWorld(routePolyline[0], editorState.grid, viewMode);
+      const lastPt = gridToWorld(
+        routePolyline[routePolyline.length - 1],
+        editorState.grid,
+        viewMode,
+      );
+
+      graphics.setStrokeStyle({ color: 0x34d399, width: 9, alpha: 0.22 });
+      graphics.moveTo(firstPt.x, firstPt.y);
+      for (let i = 1; i < routePolyline.length; i += 1) {
+        const pt = gridToWorld(routePolyline[i], editorState.grid, viewMode);
+        graphics.lineTo(pt.x, pt.y);
+      }
+      graphics.stroke();
+
+      graphics.setStrokeStyle({ color: 0x10b981, width: 3.5, alpha: 0.97 });
+      graphics.moveTo(firstPt.x, firstPt.y);
+      for (let i = 1; i < routePolyline.length; i += 1) {
+        const pt = gridToWorld(routePolyline[i], editorState.grid, viewMode);
+        graphics.lineTo(pt.x, pt.y);
+      }
+      graphics.stroke();
+
+      graphics.setFillStyle({ color: 0x10b981, alpha: 1 });
+      graphics.circle(firstPt.x, firstPt.y, 6);
+      graphics.fill();
+      graphics.setStrokeStyle({ color: 0xffffff, width: 2, alpha: 0.95 });
+      graphics.circle(firstPt.x, firstPt.y, 6);
+      graphics.stroke();
+
+      graphics.setFillStyle({ color: 0xf43f5e, alpha: 1 });
+      graphics.circle(lastPt.x, lastPt.y, 6);
+      graphics.fill();
+      graphics.setStrokeStyle({ color: 0xffffff, width: 2, alpha: 0.95 });
+      graphics.circle(lastPt.x, lastPt.y, 6);
+      graphics.stroke();
+    }
+  }, [
+    altPolylines,
+    asphaltCells,
+    buildings,
+    editorState.activeAreaFootprint,
+    editorState.activeBuildingFootprint,
+    editorState.activeTool,
+    editorState.areaCellsByKey,
+    editorState.blocksById,
+    editorState.grid,
+    editorState.pathsByCell,
+    hoverCell,
+    props,
+    routePolyline,
+    selectedBuildingId,
+    selectedPropId,
+    templateBuildingAlpha,
+    templateTileAlpha,
+    viewMode,
+  ]);
 
   return (
     <div
@@ -1113,7 +1835,7 @@ export function ModularMapCanvas({
                 setDevUnderlayScale(Number.isFinite(next) ? next : 1);
               }}
             />
-            <span className="tabular-nums text-slate-300">{devUnderlayScale.toFixed(2)}×</span>
+            <span className="tabular-nums text-slate-300">{devUnderlayScale.toFixed(2)}Ã—</span>
           </label>
 
           <div className="mt-2 grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2">
@@ -1145,7 +1867,7 @@ export function ModularMapCanvas({
             <button
               type="button"
               className="rounded-md border border-slate-700 bg-slate-900/70 px-2 py-1 text-slate-100 hover:bg-slate-800"
-              title="Guardar escala y posición para esta imagen"
+              title="Guardar escala y posiciÃ³n para esta imagen"
               onClick={() => {
                 if (!import.meta.env.DEV || !devUnderlayStorageKey || typeof window === 'undefined') {
                   return;
@@ -1187,8 +1909,15 @@ export function ModularMapCanvas({
         backgroundColor={0xe6eef6}
         resolution={DEVICE_PIXEL_RATIO}
         autoDensity
+        powerPreference="high-performance"
       >
-        <pixiContainer x={camera.x} y={camera.y} scale={camera.scale} sortableChildren>
+        <pixiContainer
+          ref={worldContainerRef}
+          x={renderCamera.x}
+          y={renderCamera.y}
+          scale={renderCamera.scale}
+          sortableChildren
+        >
           {devUnderlayVisible && devUnderlayTexture && devUnderlayPlacement ? (
             <pixiSprite
               zIndex={-100}
@@ -1203,460 +1932,25 @@ export function ModularMapCanvas({
 
           <pixiGraphics
             zIndex={0}
-            draw={(graphics) => {
-              graphics.clear();
-
-              for (let row = 0; row < editorState.grid.rows; row += 1) {
-                for (let column = 0; column < editorState.grid.columns; column += 1) {
-                  if (!editorState.areaCellsByKey[`${column}:${row}`]) {
-                    continue;
-                  }
-
-                  const path = editorState.pathsByCell[`${column}:${row}`];
-                  const fill = path
-                    ? path.material === 'pavers'
-                      ? 0xd8d0bc
-                      : path.material === 'grass-transition'
-                        ? 0x8cb989
-                        : path.material === 'indoor'
-                          ? 0xe7d7b5
-                        : 0xc8cfd8
-                    : (column + row) % 2 === 0
-                      ? 0x86c56e
-                      : 0x7bb864;
-                  const stroke = path ? 0x6f7f8e : 0x5e8b4c;
-                  if (viewMode === '2d') {
-                    drawTopDownTile(
-                      graphics,
-                      { x: column, y: row },
-                      fill,
-                      templateTileAlpha,
-                      stroke,
-                    );
-                  } else {
-                    drawGridTile(graphics, { x: column, y: row }, editorState.grid, fill, 1, stroke);
-                  }
-                }
-              }
-
-              for (const building of buildings) {
-                const colors = getBuildingColors(building.type);
-                const isSelected = selectedBuildingId === building.id;
-                const sortedCells = [...building.occupiedCells].sort(
-                  (left, right) => left.x + left.y - (right.x + right.y) || left.y - right.y,
-                );
-
-                for (const cell of sortedCells) {
-                  const internalPath = editorState.pathsByCell[cellKey(cell)];
-                  const hasIndoor = internalPath?.material === 'indoor';
-                  if (viewMode === '2d') {
-                    drawTopDownTile(
-                      graphics,
-                      cell,
-                      isSelected ? 0xffffff : hasIndoor ? 0xe7d7b5 : colors.top,
-                      isSelected ? 1 : templateBuildingAlpha,
-                      isSelected ? 0x334155 : 0x2b3642,
-                    );
-                  } else {
-                    drawRaisedTile(
-                      graphics,
-                      cell,
-                      editorState.grid,
-                      isSelected ? 0xffffff : hasIndoor ? 0xe7d7b5 : colors.top,
-                      isSelected ? 0xd6e5f6 : colors.left,
-                      isSelected ? 0xb6c9dd : colors.right,
-                    );
-                  }
-                }
-              }
-
-              for (const prop of props) {
-                const world = gridToWorld(prop.cell, editorState.grid, viewMode);
-                const centerX = viewMode === '2d' ? world.x + TILE_2D_SIZE / 2 : world.x;
-                const centerY = viewMode === '2d' ? world.y + TILE_2D_SIZE / 2 : world.y - 4;
-                const selected = selectedPropId === prop.id;
-
-                if (prop.kind === 'poi') {
-                  const radiusCells = Number(prop.metadata?.interestRadius ?? '0');
-                  if (Number.isFinite(radiusCells) && radiusCells > 0) {
-                    if (viewMode === '2d') {
-                      const radiusPx = radiusCells * TILE_2D_SIZE;
-                      graphics.setFillStyle({ color: 0xd35c82, alpha: 0.12 });
-                      graphics.circle(centerX, centerY, radiusPx);
-                      graphics.fill();
-                      graphics.setStrokeStyle({ color: 0xf9a8d4, width: 1.2, alpha: 0.5 });
-                      graphics.circle(centerX, centerY, radiusPx);
-                      graphics.stroke();
-                    } else {
-                      const eastWorld = gridToWorld(
-                        { x: prop.cell.x + radiusCells, y: prop.cell.y },
-                        editorState.grid,
-                        viewMode,
-                      );
-                      const southWorld = gridToWorld(
-                        { x: prop.cell.x, y: prop.cell.y + radiusCells },
-                        editorState.grid,
-                        viewMode,
-                      );
-                      const radiusX = Math.max(8, Math.abs(eastWorld.x - world.x));
-                      const radiusY = Math.max(6, Math.abs(southWorld.y - world.y));
-                      graphics.setFillStyle({ color: 0xd35c82, alpha: 0.1 });
-                      graphics.ellipse(centerX, centerY, radiusX, radiusY);
-                      graphics.fill();
-                      graphics.setStrokeStyle({ color: 0xf9a8d4, width: 1.1, alpha: 0.45 });
-                      graphics.ellipse(centerX, centerY, radiusX, radiusY);
-                      graphics.stroke();
-                    }
-                  }
-                }
-
-                if (prop.kind === 'track') {
-                  drawTrackTile(graphics, prop.cell, editorState.grid, selected, viewMode);
-                  continue;
-                }
-
-                if (prop.kind === 'park') {
-                  graphics.setFillStyle({ color: 0x16a34a, alpha: 0.95 });
-                  graphics.circle(centerX, centerY, selected ? 9 : 7);
-                  graphics.fill();
-                  graphics.setStrokeStyle({ color: 0x14532d, width: 2, alpha: 0.85 });
-                  graphics.circle(centerX, centerY, selected ? 9 : 7);
-                  graphics.stroke();
-                  graphics.setFillStyle({ color: 0xbbf7d0, alpha: 0.95 });
-                  graphics.circle(centerX, centerY - 1, selected ? 4 : 3);
-                  graphics.fill();
-                  continue;
-                }
-
-                if (prop.kind === 'access-vehicular') {
-                  const size = selected ? 12 : 10;
-                  const half = size / 2;
-                  graphics.setFillStyle({ color: 0xf59e0b, alpha: 0.96 });
-                  graphics.roundRect(centerX - half, centerY - half, size, size, 2);
-                  graphics.fill();
-                  graphics.setStrokeStyle({ color: 0x78350f, width: 2, alpha: 0.9 });
-                  graphics.roundRect(centerX - half, centerY - half, size, size, 2);
-                  graphics.stroke();
-                  graphics.setStrokeStyle({ color: 0xfffbeb, width: 1.5, alpha: 0.95 });
-                  graphics.moveTo(centerX, centerY - half + 2);
-                  graphics.lineTo(centerX, centerY + half - 2);
-                  graphics.stroke();
-                  graphics.setStrokeStyle({ color: 0xfffbeb, width: 1.5, alpha: 0.95 });
-                  graphics.moveTo(centerX - half + 2, centerY);
-                  graphics.lineTo(centerX + half - 2, centerY);
-                  graphics.stroke();
-                  continue;
-                }
-
-                if (prop.kind === 'access-pedestrian') {
-                  const radius = selected ? 8 : 6.5;
-                  graphics.setFillStyle({ color: 0x22c55e, alpha: 0.95 });
-                  graphics.circle(centerX, centerY, radius);
-                  graphics.fill();
-                  graphics.setStrokeStyle({ color: 0x14532d, width: 2, alpha: 0.9 });
-                  graphics.circle(centerX, centerY, radius);
-                  graphics.stroke();
-                  graphics.setStrokeStyle({ color: 0xecfdf5, width: 1.4, alpha: 0.95 });
-                  graphics.moveTo(centerX, centerY - radius + 2);
-                  graphics.lineTo(centerX, centerY + radius - 2);
-                  graphics.stroke();
-                  continue;
-                }
-
-                if (prop.kind === 'asphalt') {
-                  const width = viewMode === '2d' ? TILE_2D_SIZE : 0;
-                  const height = viewMode === '2d' ? TILE_2D_SIZE : 0;
-                  const halfW = width / 2;
-                  const halfH = height / 2;
-
-                  const neighbors = {
-                    east: asphaltCells.has(cellKey({ x: prop.cell.x + 1, y: prop.cell.y })),
-                    west: asphaltCells.has(cellKey({ x: prop.cell.x - 1, y: prop.cell.y })),
-                    south: asphaltCells.has(cellKey({ x: prop.cell.x, y: prop.cell.y + 1 })),
-                    north: asphaltCells.has(cellKey({ x: prop.cell.x, y: prop.cell.y - 1 })),
-                  };
-
-                  const connectors: Array<{ x: number; y: number; key: 'east' | 'west' | 'south' | 'north' }> = [];
-                  for (const [key, deltaX, deltaY] of [
-                    ['east', 1, 0],
-                    ['west', -1, 0],
-                    ['south', 0, 1],
-                    ['north', 0, -1],
-                  ] as const) {
-                    if (!neighbors[key]) {
-                      continue;
-                    }
-                    const neighbor = { x: prop.cell.x + deltaX, y: prop.cell.y + deltaY };
-                    const neighborWorld = gridToWorld(neighbor, editorState.grid, viewMode);
-                    const neighborX = viewMode === '2d' ? neighborWorld.x + TILE_2D_SIZE / 2 : neighborWorld.x;
-                    const neighborY = viewMode === '2d' ? neighborWorld.y + TILE_2D_SIZE / 2 : neighborWorld.y - 4;
-                    connectors.push({
-                      key,
-                      x: centerX + (neighborX - centerX) * 0.5,
-                      y: centerY + (neighborY - centerY) * 0.5,
-                    });
-                  }
-
-                  for (const connector of connectors) {
-                    graphics.setStrokeStyle({ color: 0x334155, width: selected ? 7 : 6, alpha: 0.98 });
-                    graphics.moveTo(centerX, centerY);
-                    graphics.lineTo(connector.x, connector.y);
-                    graphics.stroke();
-                  }
-
-                  if (viewMode === '2d') {
-                    drawTopDownTile(graphics, prop.cell, 0x334155, 0.98, 0x0f172a);
-                  } else {
-                    drawGridTile(graphics, prop.cell, editorState.grid, 0x334155, 0.98, 0x0f172a);
-                  }
-
-                  const connectedCount = connectors.length;
-                  const isHorizontal = neighbors.east && neighbors.west && !neighbors.north && !neighbors.south;
-                  const isVertical = neighbors.north && neighbors.south && !neighbors.east && !neighbors.west;
-
-                  graphics.setStrokeStyle({ color: 0xfacc15, width: 1.2, alpha: 0.9 });
-                  if (isHorizontal || isVertical) {
-                    const start = connectors.find((c) => c.key === (isHorizontal ? 'west' : 'north'));
-                    const end = connectors.find((c) => c.key === (isHorizontal ? 'east' : 'south'));
-                    if (start && end) {
-                      graphics.moveTo(start.x, start.y);
-                      graphics.lineTo(end.x, end.y);
-                      graphics.stroke();
-                    }
-                  } else if (connectedCount === 2) {
-                    graphics.moveTo(connectors[0].x, connectors[0].y);
-                    graphics.lineTo(centerX, centerY);
-                    graphics.lineTo(connectors[1].x, connectors[1].y);
-                    graphics.stroke();
-                  } else if (connectedCount >= 3) {
-                    // En cruces y T evitamos dibujar "plus" amarillos en cada celda.
-                  } else if (connectedCount === 1) {
-                    graphics.moveTo(centerX, centerY);
-                    graphics.lineTo(connectors[0].x, connectors[0].y);
-                    graphics.stroke();
-                  } else {
-                    if (viewMode === '2d') {
-                      graphics.moveTo(centerX - halfW + 2, centerY);
-                      graphics.lineTo(centerX + halfW - 2, centerY);
-                    }
-                    graphics.stroke();
-                  }
-
-                  if (connectedCount > 0) {
-                    if (viewMode === '2d') {
-                      graphics.setStrokeStyle({ color: 0x1e293b, width: 1.0, alpha: 0.45 });
-                      graphics.roundRect(centerX - halfW, centerY - halfH, width, height, 2);
-                      graphics.stroke();
-                    }
-                  }
-                  continue;
-                }
-
-                if (prop.kind === 'car') {
-                  const bodyW = selected ? 16 : 14;
-                  const bodyH = selected ? 9 : 8;
-                  const halfW = bodyW / 2;
-                  const halfH = bodyH / 2;
-                  graphics.setFillStyle({ color: 0xef4444, alpha: 0.97 });
-                  graphics.roundRect(centerX - halfW, centerY - halfH, bodyW, bodyH, 3);
-                  graphics.fill();
-                  graphics.setStrokeStyle({ color: 0x7f1d1d, width: 1.5, alpha: 0.9 });
-                  graphics.roundRect(centerX - halfW, centerY - halfH, bodyW, bodyH, 3);
-                  graphics.stroke();
-                  graphics.setFillStyle({ color: 0x93c5fd, alpha: 0.95 });
-                  graphics.roundRect(centerX - 3.5, centerY - 2.5, 7, 4.5, 1.5);
-                  graphics.fill();
-                  graphics.setFillStyle({ color: 0x0f172a, alpha: 0.95 });
-                  graphics.circle(centerX - halfW + 3, centerY + halfH - 1, 1.4);
-                  graphics.fill();
-                  graphics.circle(centerX + halfW - 3, centerY + halfH - 1, 1.4);
-                  graphics.fill();
-                  continue;
-                }
-
-                if (prop.kind === 'motorcycle') {
-                  const bodyW = selected ? 12 : 10;
-                  const bodyH = selected ? 6 : 5;
-                  const halfW = bodyW / 2;
-                  const halfH = bodyH / 2;
-                  graphics.setFillStyle({ color: 0xf97316, alpha: 0.98 });
-                  graphics.roundRect(centerX - halfW, centerY - halfH, bodyW, bodyH, 2);
-                  graphics.fill();
-                  graphics.setStrokeStyle({ color: 0x9a3412, width: 1.4, alpha: 0.92 });
-                  graphics.roundRect(centerX - halfW, centerY - halfH, bodyW, bodyH, 2);
-                  graphics.stroke();
-                  graphics.setFillStyle({ color: 0x1e293b, alpha: 0.95 });
-                  graphics.circle(centerX - halfW + 1.6, centerY + halfH - 0.3, 1.2);
-                  graphics.fill();
-                  graphics.circle(centerX + halfW - 1.6, centerY + halfH - 0.3, 1.2);
-                  graphics.fill();
-                  graphics.setStrokeStyle({ color: 0xfef3c7, width: 1.0, alpha: 0.9 });
-                  graphics.moveTo(centerX - 1.5, centerY - halfH + 0.8);
-                  graphics.lineTo(centerX + 1.5, centerY - halfH + 0.8);
-                  graphics.stroke();
-                  continue;
-                }
-
-                const fill =
-                  prop.kind === 'tree'
-                    ? 0x2a8f4f
-                    : prop.kind === 'bench'
-                      ? 0xa77447
-                      : prop.kind === 'bathroom'
-                        ? 0x447bd4
-                        : prop.kind === 'shrub'
-                          ? 0xe6c84d
-                          : prop.kind === 'trash'
-                            ? 0x6d7785
-                            : 0xe06a8a;
-                graphics.setFillStyle({ color: fill, alpha: 1 });
-                graphics.circle(centerX, centerY, selected ? 7 : 5);
-                graphics.fill();
-                graphics.setStrokeStyle({ color: 0x17202a, width: 2, alpha: 0.6 });
-                graphics.circle(centerX, centerY, selected ? 7 : 5);
-                graphics.stroke();
-              }
-
-              if (hoverCell) {
-                const hoverIsEnabled = Boolean(editorState.areaCellsByKey[cellKey(hoverCell)]);
-                const hoverBuildingId = getBuildingIdAtCell(hoverCell, editorState.blocksById);
-                const hoverColor =
-                  editorState.activeTool === 'area-block'
-                    ? 0x58a95a
-                    : editorState.activeTool === 'building-block'
-                      ? 0x4f78ff
-                      : editorState.activeTool === 'path-brush'
-                        ? 0x2d7f7a
-                        : editorState.activeTool === 'erase'
-                          ? 0xd34d4d
-                          : editorState.activeTool === 'prop'
-                            ? 0x4f9464
-                            : hoverBuildingId
-                              ? 0xf2c65c
-                              : 0xffffff;
-
-                if (
-                  editorState.activeTool === 'building-block' ||
-                  editorState.activeTool === 'area-block'
-                ) {
-                  const footprint =
-                    editorState.activeTool === 'area-block'
-                      ? editorState.activeAreaFootprint
-                      : editorState.activeBuildingFootprint;
-
-                  for (let y = 0; y < footprint.height; y += 1) {
-                    for (let x = 0; x < footprint.width; x += 1) {
-                      const previewCell = { x: hoverCell.x + x, y: hoverCell.y + y };
-                      const shouldDrawPreview =
-                        editorState.activeTool === 'area-block'
-                          ? previewCell.x >= 0 && previewCell.y >= 0
-                          : Boolean(editorState.areaCellsByKey[cellKey(previewCell)]);
-                      if (!shouldDrawPreview) {
-                        continue;
-                      }
-
-                      if (viewMode === '2d') {
-                        drawTopDownTile(graphics, previewCell, hoverColor, 0.28, hoverColor);
-                      } else {
-                        drawGridTile(
-                          graphics,
-                          previewCell,
-                          editorState.grid,
-                          hoverColor,
-                          0.28,
-                          hoverColor,
-                        );
-                      }
-                    }
-                  }
-                } else if (hoverIsEnabled) {
-                  if (viewMode === '2d') {
-                    drawTopDownTile(graphics, hoverCell, hoverColor, 0.24, hoverColor);
-                  } else {
-                    drawGridTile(graphics, hoverCell, editorState.grid, hoverColor, 0.24, hoverColor);
-                  }
-                }
-              }
-
-              // ── Rutas alternativas (capa inferior) ────────────────────────
-              for (const altPoly of altPolylines) {
-                if (altPoly.length < 2) {
-                  continue;
-                }
-                const firstAlt = gridToWorld(altPoly[0], editorState.grid, viewMode);
-                graphics.setStrokeStyle({ color: 0x94a3b8, width: 3, alpha: 0.45 });
-                graphics.moveTo(firstAlt.x, firstAlt.y);
-                for (let i = 1; i < altPoly.length; i += 1) {
-                  const pt = gridToWorld(altPoly[i], editorState.grid, viewMode);
-                  graphics.lineTo(pt.x, pt.y);
-                }
-                graphics.stroke();
-              }
-
-              // ── Ruta recomendada principal ────────────────────────────────
-              if (routePolyline.length >= 2) {
-                const firstPt = gridToWorld(routePolyline[0], editorState.grid, viewMode);
-                const lastPt = gridToWorld(
-                  routePolyline[routePolyline.length - 1],
-                  editorState.grid,
-                  viewMode,
-                );
-
-                // Halo/glow exterior
-                graphics.setStrokeStyle({ color: 0x34d399, width: 9, alpha: 0.22 });
-                graphics.moveTo(firstPt.x, firstPt.y);
-                for (let i = 1; i < routePolyline.length; i += 1) {
-                  const pt = gridToWorld(routePolyline[i], editorState.grid, viewMode);
-                  graphics.lineTo(pt.x, pt.y);
-                }
-                graphics.stroke();
-
-                // Línea principal
-                graphics.setStrokeStyle({ color: 0x10b981, width: 3.5, alpha: 0.97 });
-                graphics.moveTo(firstPt.x, firstPt.y);
-                for (let i = 1; i < routePolyline.length; i += 1) {
-                  const pt = gridToWorld(routePolyline[i], editorState.grid, viewMode);
-                  graphics.lineTo(pt.x, pt.y);
-                }
-                graphics.stroke();
-
-                // Marcador de origen (verde)
-                graphics.setFillStyle({ color: 0x10b981, alpha: 1 });
-                graphics.circle(firstPt.x, firstPt.y, 6);
-                graphics.fill();
-                graphics.setStrokeStyle({ color: 0xffffff, width: 2, alpha: 0.95 });
-                graphics.circle(firstPt.x, firstPt.y, 6);
-                graphics.stroke();
-
-                // Marcador de destino (rosa)
-                graphics.setFillStyle({ color: 0xf43f5e, alpha: 1 });
-                graphics.circle(lastPt.x, lastPt.y, 6);
-                graphics.fill();
-                graphics.setStrokeStyle({ color: 0xffffff, width: 2, alpha: 0.95 });
-                graphics.circle(lastPt.x, lastPt.y, 6);
-                graphics.stroke();
-              }
-            }}
+            draw={drawScene}
           />
 
         </pixiContainer>
 
-        <pixiContainer>
+        <pixiContainer
+          ref={overlayContainerRef}
+          x={renderCamera.x}
+          y={renderCamera.y}
+          scale={renderCamera.scale}
+          sortableChildren
+        >
           {buildings.map((building) => {
             const hasLabel = building.name.trim().length > 0;
             if (!hasLabel) {
               return null;
             }
 
-            const worldLabelPoint = gridToWorld(building.centroid, editorState.grid, viewMode);
-            const labelPoint = {
-              x: camera.x + worldLabelPoint.x * camera.scale,
-              y:
-                camera.y +
-                (viewMode === '2d'
-                  ? (worldLabelPoint.y + TILE_2D_SIZE / 2) * camera.scale
-                  : worldLabelPoint.y * camera.scale),
-            };
+            const labelPoint = gridToWorld(building.centroid, editorState.grid, viewMode);
             const active = selectedBuildingId === building.id;
 
             return (
@@ -1664,7 +1958,7 @@ export function ModularMapCanvas({
                 <pixiText
                   text={building.name}
                   x={labelPoint.x}
-                  y={labelPoint.y - 32}
+                  y={labelPoint.y - (viewMode === '2d' ? 10 : BUILDING_ELEVATION + 14)}
                   anchor={0.5}
                   resolution={DEVICE_PIXEL_RATIO * 2}
                   style={{
@@ -1678,7 +1972,7 @@ export function ModularMapCanvas({
                 <pixiText
                   text={building.type.toUpperCase()}
                   x={labelPoint.x}
-                  y={labelPoint.y - 14}
+                  y={labelPoint.y - (viewMode === '2d' ? -2 : BUILDING_ELEVATION)}
                   anchor={0.5}
                   resolution={DEVICE_PIXEL_RATIO * 2}
                   style={{
@@ -1699,11 +1993,7 @@ export function ModularMapCanvas({
               return null;
             }
 
-            const worldPoint = gridToWorld(prop.cell, editorState.grid, viewMode);
-            const labelPoint = {
-              x: camera.x + (viewMode === '2d' ? (worldPoint.x + TILE_2D_SIZE / 2) * camera.scale : worldPoint.x * camera.scale),
-              y: camera.y + (viewMode === '2d' ? (worldPoint.y + TILE_2D_SIZE / 2) * camera.scale : worldPoint.y * camera.scale),
-            };
+            const labelPoint = gridToWorld(prop.cell, editorState.grid, viewMode);
             const active = selectedPropId === prop.id;
 
             return (
@@ -1711,7 +2001,7 @@ export function ModularMapCanvas({
                 key={prop.id}
                 text={label}
                 x={labelPoint.x}
-                y={labelPoint.y - 22}
+                y={labelPoint.y - (viewMode === '2d' ? 8 : 16)}
                 anchor={0.5}
                 resolution={DEVICE_PIXEL_RATIO * 2}
                 style={{
@@ -1727,100 +2017,76 @@ export function ModularMapCanvas({
         </pixiContainer>
       </Application>
 
-      {/* ── Avatar HTML Overlay ──────────────────────────────────────── */}
-      {avatarScreenPos && (
+      <div
+        ref={avatarOverlayRef}
+        className="pointer-events-none absolute left-0 top-0 z-20 opacity-0"
+        style={{ willChange: 'transform, opacity' }}
+        aria-hidden="true"
+      >
         <div
-          style={{
-            position: 'absolute',
-            left: avatarScreenPos.x,
-            top: avatarScreenPos.y,
-            transform: 'translate(-50%, -100%)',
-            pointerEvents: 'none',
-            zIndex: 10,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
+          ref={avatarBubbleRef}
+          className="absolute left-0 top-0 hidden"
+          style={{ willChange: 'transform, width, height' }}
         >
-          {showAvatarBubble ? (
-            <div
-              style={{
-                width: AVATAR_BUBBLE_SIZE_PX,
-                height: AVATAR_BUBBLE_SIZE_PX,
-                borderRadius: 999,
-                background: 'rgba(255,255,255,0.92)',
-                border: '2px solid rgba(255,255,255,0.95)',
-                boxShadow: '0 8px 18px rgba(0,0,0,0.45)',
-                marginBottom: 6,
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {avatarImageUrl ? (
-                <img
-                  src={avatarImageUrl}
-                  alt="Avatar"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    imageRendering: 'pixelated',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    borderRadius: 999,
-                    background: 'radial-gradient(circle at 35% 35%, #67e8f9, #0891b2)',
-                    boxShadow: 'inset 0 0 0 3px rgba(255,255,255,0.8)',
-                  }}
-                />
-              )}
-            </div>
-          ) : null}
-
           <div
-            style={{
-              width: avatarCellSizePx,
-              height: avatarCellSizePx,
-              borderRadius: 6,
-              overflow: 'hidden',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.45)',
-              background: avatarImageUrl ? 'rgba(255,255,255,0.08)' : 'transparent',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+            className="relative flex items-center justify-center rounded-full border border-white/90 bg-white/95 shadow-[0_10px_30px_rgba(15,23,42,0.38)]"
+            style={{ width: '100%', height: '100%' }}
           >
+            <div
+              className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-white/90 bg-white/95"
+            />
             {avatarImageUrl ? (
               <img
-                src={avatarImageUrl}
-                alt="Avatar"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  imageRendering: 'pixelated',
+                ref={(node) => {
+                  avatarBubbleVisualRef.current = node;
                 }}
+                src={avatarImageUrl}
+                alt=""
+                className="block rounded-full object-cover select-none"
+                style={{ imageRendering: 'pixelated' }}
+                draggable={false}
               />
             ) : (
               <div
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  borderRadius: 6,
-                  background: 'radial-gradient(circle at 35% 35%, #67e8f9, #0891b2)',
-                  boxShadow: 'inset 0 0 0 2px rgba(255,255,255,0.85)',
+                ref={(node) => {
+                  avatarBubbleVisualRef.current = node;
                 }}
+                className="rounded-full border border-cyan-100 bg-cyan-600/95"
               />
             )}
           </div>
         </div>
-      )}
+
+        {avatarImageUrl ? (
+          <img
+            ref={(node) => {
+              avatarVisualRef.current = node;
+            }}
+            src={avatarImageUrl}
+            alt=""
+            className="block w-auto max-w-none select-none"
+            style={{
+              transform: 'translate3d(-50%, -100%, 0)',
+              imageRendering: 'pixelated',
+              willChange: 'height',
+            }}
+            draggable={false}
+          />
+        ) : (
+          <div
+            ref={(node) => {
+              avatarVisualRef.current = node;
+            }}
+            className="rounded-full border-2 border-cyan-100 bg-cyan-600/95"
+            style={{
+              height: '18px',
+              transform: 'translate3d(-50%, -100%, 0)',
+              willChange: 'width, height',
+            }}
+          />
+        )}
+      </div>
+
     </div>
   );
 }

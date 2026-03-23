@@ -1,34 +1,84 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 
 import { gridAStarPath, snapToPathTile } from '../lib/gridAStar';
 import type { GridCell } from '../editor/modularMapTypes';
 
 // Starting position: near Módulo G (grey path tiles area to the left of it)
-const AVATAR_ORIGIN: GridCell = { x: 24, y: 20 };
+const AVATAR_ORIGIN: GridCell = { x: 83, y: 44 };
+const AVATAR_POSITION_STORAGE_KEY = 'cuceiverse.map.avatarPosition.v4';
 
 // Walking speed in cells per second (reduced from 4 for more natural flow)
 const WALK_SPEED = 2.5;
 
-// Animation frame rate (how fast the walk frames cycle 0->1->2->3)
-const ANIMATION_FRAME_RATE = 0.12; // seconds per frame (~8.3 FPS)
+function getIdleDirection(viewMode: 'isometric' | '2d'): number {
+  return viewMode === 'isometric' ? 3 : 2;
+}
+
+function readStoredAvatarPosition(): { x: number; y: number } | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(AVATAR_POSITION_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown };
+    const x = typeof parsed.x === 'number' ? parsed.x : NaN;
+    const y = typeof parsed.y === 'number' ? parsed.y : NaN;
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+
+    return { x, y };
+  } catch {
+    return null;
+  }
+}
+
+function persistAvatarPosition(position: { x: number; y: number }) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(AVATAR_POSITION_STORAGE_KEY, JSON.stringify(position));
+  } catch {
+    // ignore persistence errors
+  }
+}
 
 /**
  * Maps movement delta to a Habbo direction number.
+ * In isometric view the path moves on grid axes, but on screen those axes
+ * become diagonals, so we convert grid motion into screen motion first.
  */
-function toHabboDirection(dx: number, dy: number): number {
-  if (dx > 0 && dy > 0) return 3;  // SE
-  if (dx > 0 && dy < 0) return 1;  // NE
-  if (dx < 0 && dy > 0) return 5;  // SW
-  if (dx < 0 && dy < 0) return 7;  // NW
-  if (dx > 0) return 2;             // E
-  if (dx < 0) return 6;             // W
-  if (dy > 0) return 4;             // S
-  return 0;                          // N (default)
+function toHabboDirection(
+  dx: number,
+  dy: number,
+  viewMode: 'isometric' | '2d',
+): number {
+  const screenDx = viewMode === 'isometric' ? dx - dy : dx;
+  const screenDy = viewMode === 'isometric' ? dx + dy : dy;
+
+  if (screenDx > 0 && screenDy > 0) return 3; // SE
+  if (screenDx > 0 && screenDy < 0) return 1; // NE
+  if (screenDx < 0 && screenDy > 0) return 5; // SW
+  if (screenDx < 0 && screenDy < 0) return 7; // NW
+  if (screenDx > 0) return 2; // E
+  if (screenDx < 0) return 6; // W
+  if (screenDy > 0) return 4; // S
+  return 0; // N
 }
 
 type AvatarWalkResult = {
   /** Current interpolated position (fractional cell coords) */
   position: { x: number; y: number };
+  /** Mutable position ref for imperative renderers */
+  positionRef: MutableRefObject<{ x: number; y: number }>;
   /** Whether the avatar is currently walking */
   isMoving: boolean;
   /** Habbo direction number (0-7) for sprite direction */
@@ -43,29 +93,50 @@ type AvatarWalkResult = {
 
 export function useAvatarWalk(
   pathCellsSet: ReadonlySet<string>,
+  viewMode: 'isometric' | '2d' = 'isometric',
 ): AvatarWalkResult {
-  const [position, setPosition] = useState<{ x: number; y: number }>(() => ({
-    x: AVATAR_ORIGIN.x + 0.5,
-    y: AVATAR_ORIGIN.y + 0.5,
-  }));
+  const idleDirection = getIdleDirection(viewMode);
+  const [position, setPosition] = useState<{ x: number; y: number }>(() => {
+    const stored = readStoredAvatarPosition();
+    return stored ?? {
+      x: AVATAR_ORIGIN.x + 0.5,
+      y: AVATAR_ORIGIN.y + 0.5,
+    };
+  });
   const [isMoving, setIsMoving] = useState(false);
-  const [habboDirection, setHabboDirection] = useState(2); // default facing SE
+  const [habboDirection, setHabboDirection] = useState(idleDirection);
   const [walkFrame, setWalkFrame] = useState(0);
-  const [pathCells, setPathCells] = useState<GridCell[]>([]);
 
   const frameRef = useRef(0);
   const pathRef = useRef<GridCell[]>([]);
+  const positionRef = useRef(position);
+  const directionRef = useRef(habboDirection);
   const segmentIndexRef = useRef(0);
   const progressRef = useRef(0);
   const lastTimestampRef = useRef(0);
-  const animTimeRef = useRef(0);
+
+  useEffect(() => {
+    positionRef.current = position;
+    persistAvatarPosition(position);
+  }, [position]);
+
+  useEffect(() => {
+    directionRef.current = habboDirection;
+  }, [habboDirection]);
+
+  useEffect(() => {
+    if (isMoving) {
+      return;
+    }
+    directionRef.current = idleDirection;
+    setHabboDirection(idleDirection);
+  }, [idleDirection, isMoving]);
 
   /** Stop any current animation */
   const stopAnimation = useCallback(() => {
     cancelAnimationFrame(frameRef.current);
     frameRef.current = 0;
     lastTimestampRef.current = 0;
-    animTimeRef.current = 0;
     setIsMoving(false);
     setWalkFrame(0);
   }, []);
@@ -76,8 +147,8 @@ export function useAvatarWalk(
       // Our convention is: cell centers are (cell.x + 0.5, cell.y + 0.5).
       // Using Math.round(position.x) would incorrectly jump at .5 boundaries.
       const currentCell: GridCell = {
-        x: Math.round(position.x - 0.5),
-        y: Math.round(position.y - 0.5),
+        x: Math.round(positionRef.current.x - 0.5),
+        y: Math.round(positionRef.current.y - 0.5),
       };
 
       const snappedStart = snapToPathTile(currentCell, pathCellsSet);
@@ -91,16 +162,23 @@ export function useAvatarWalk(
       stopAnimation();
 
       pathRef.current = path;
-      setPathCells(path);
       segmentIndexRef.current = 0;
       progressRef.current = 0;
-      animTimeRef.current = 0;
+      const firstSegment = {
+        dx: path[1].x - path[0].x,
+        dy: path[1].y - path[0].y,
+      };
+      const initialDirection = toHabboDirection(firstSegment.dx, firstSegment.dy, viewMode);
+      directionRef.current = initialDirection;
+      setHabboDirection(initialDirection);
 
       const tick = (timestamp: number) => {
         if (!lastTimestampRef.current) {
           lastTimestampRef.current = timestamp;
           setIsMoving(true);
-          setPosition({ x: path[0].x + 0.5, y: path[0].y + 0.5 });
+          const nextPosition = { x: path[0].x + 0.5, y: path[0].y + 0.5 };
+          positionRef.current = nextPosition;
+          setPosition(nextPosition);
           frameRef.current = requestAnimationFrame(tick);
           return;
         }
@@ -108,11 +186,6 @@ export function useAvatarWalk(
         const delta = (timestamp - lastTimestampRef.current) / 1000;
         lastTimestampRef.current = timestamp;
         progressRef.current += delta * WALK_SPEED;
-        animTimeRef.current += delta;
-
-        // Cycle through walking frames (0, 1, 2, 3)
-        const currentFrame = Math.floor(animTimeRef.current / ANIMATION_FRAME_RATE) % 4;
-        setWalkFrame(currentFrame);
 
         while (progressRef.current >= 1 && segmentIndexRef.current < path.length - 2) {
           progressRef.current -= 1;
@@ -126,18 +199,26 @@ export function useAvatarWalk(
 
         const dx = to.x - from.x;
         const dy = to.y - from.y;
-        setHabboDirection(toHabboDirection(dx, dy));
+        const nextDirection = toHabboDirection(dx, dy, viewMode);
+        if (nextDirection !== directionRef.current) {
+          directionRef.current = nextDirection;
+          setHabboDirection(nextDirection);
+        }
 
-        setPosition({
+        const nextPosition = {
           x: from.x + 0.5 + (to.x - from.x) * t,
           y: from.y + 0.5 + (to.y - from.y) * t,
-        });
+        };
+        positionRef.current = nextPosition;
 
         const done = si >= path.length - 2 && progressRef.current >= 1;
         if (done) {
           const last = path[path.length - 1];
-          setPosition({ x: last.x + 0.5, y: last.y + 0.5 });
-          setPathCells([]);
+          const lastPosition = { x: last.x + 0.5, y: last.y + 0.5 };
+          positionRef.current = lastPosition;
+          directionRef.current = idleDirection;
+          setHabboDirection(idleDirection);
+          setPosition(lastPosition);
           stopAnimation();
           return;
         }
@@ -147,14 +228,23 @@ export function useAvatarWalk(
 
       frameRef.current = requestAnimationFrame(tick);
     },
-    [pathCellsSet, position, stopAnimation],
+    [idleDirection, pathCellsSet, stopAnimation, viewMode],
   );
 
   useEffect(() => {
     return () => {
       cancelAnimationFrame(frameRef.current);
+      persistAvatarPosition(positionRef.current);
     };
   }, []);
 
-  return { position, isMoving, habboDirection, walkFrame, walk, pathCells };
+  return {
+    position,
+    positionRef,
+    isMoving,
+    habboDirection,
+    walkFrame,
+    walk,
+    pathCells: pathRef.current,
+  };
 }

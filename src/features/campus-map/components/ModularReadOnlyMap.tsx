@@ -9,6 +9,7 @@ import { gridAStarPath, snapToPathTile } from '../lib/gridAStar';
 import { loadRuntimeSeed } from '../lib/runtimeSeed';
 import { useAvatarWalk } from '../hooks/useAvatarWalk';
 import { getMyProfile } from '../../../features/auth/api/auth';
+import { extractFigureFromAvatarValue, resolveAvatarImage } from '../../../lib/avatarImage';
 import { ModularMapCanvas } from './ModularMapCanvas';
 import type {
   BuildingBlock,
@@ -561,47 +562,44 @@ export function ModularReadOnlyMap() {
   }, [viewerState.pathsByCell, buildingOccupiedCellsSet]);
 
   // ── Avatar on map (needs pathCellsSet) ──────────────────────────────
-  const { position: avatarGridPos, walk: walkAvatar, habboDirection, walkFrame, isMoving: avatarIsMoving } = useAvatarWalk(pathCellsSet);
+  const {
+    position: avatarGridPos,
+    positionRef: avatarPositionRef,
+    walk: walkAvatar,
+    habboDirection,
+    isMoving: avatarIsMoving,
+  } = useAvatarWalk(pathCellsSet, viewMode);
 
-  // Build a direction-aware Habbo sprite URL
+  const avatarFigure = useMemo(
+    () => extractFigureFromAvatarValue(userAvatarUrl),
+    [userAvatarUrl],
+  );
+
+  const avatarIdleDirection = viewMode === 'isometric' ? 3 : 2;
   const habboAvatarUrl = useMemo(() => {
-    if (!userAvatarUrl) return undefined;
-    const trimmed = userAvatarUrl.trim();
-    // Only figure strings (e.g. "hd-180-1.ch-215-62") are valid — skip plain URLs
-    if (!trimmed || trimmed.startsWith('http') || trimmed.startsWith('/')) return undefined;
-    if (!trimmed.includes('.') || !trimmed.includes('-')) return undefined;
-
-    // Use GIF while walking to avoid swapping PNG frames every ~120ms.
-    // This prevents visible flicker (accessories blinking) when the renderer/cache
-    // can’t keep up with many rapid per-frame requests.
-    const isGif = avatarIsMoving;
-
-    const params = new URLSearchParams({
-      figure: trimmed,
-      size: 'n',                                        // normal size sprite
-      direction: String(habboDirection),                // 0-7 Habbo direction
-      head_direction: String(habboDirection),
-      action: avatarIsMoving ? 'wlk' : 'std',          // walking or idle pose
+    const resolved = resolveAvatarImage(userAvatarUrl, {
+      size: 'n',
+      direction: avatarIdleDirection,
+      headDirection: avatarIdleDirection,
+      action: 'std',
       gesture: 'std',
-      ...(isGif ? {} : { frame_num: String(walkFrame) }),
-      img_format: isGif ? 'gif' : 'png',
+      format: 'png',
+      frame: 0,
     });
-    return `/habbo-api/render?${params.toString()}`;
-  }, [userAvatarUrl, habboDirection, walkFrame, avatarIsMoving]);
+    return resolved ?? undefined;
+  }, [avatarIdleDirection, userAvatarUrl]);
 
   // Pre-load all avatar variations for the current user to avoid lag during walking
   useEffect(() => {
-    if (!userAvatarUrl) return;
-    const trimmed = userAvatarUrl.trim();
-    if (!trimmed || trimmed.startsWith('http') || trimmed.startsWith('/') || !trimmed.includes('.') || !trimmed.includes('-')) return;
+    const figure = avatarFigure;
+    if (!figure) return;
 
-    const directions = [0, 1, 2, 3, 4, 5, 6, 7];
+    const stableDirections = [1, 2, 3];
+    const walkFrames = [0, 1, 2, 3];
 
-    // Pre-load each direction and action
-    directions.forEach(dir => {
-      // 1. Idle frame
+    stableDirections.forEach((dir) => {
       const idleParams = new URLSearchParams({
-        figure: trimmed,
+        figure,
         size: 'n',
         direction: String(dir),
         head_direction: String(dir),
@@ -612,20 +610,21 @@ export function ModularReadOnlyMap() {
       });
       new Image().src = `/habbo-api/render?${idleParams.toString()}`;
 
-      // 2. Walking animation (GIF)
-      const walkParams = new URLSearchParams({
-        figure: trimmed,
-        size: 'n',
-        direction: String(dir),
-        head_direction: String(dir),
-        action: 'wlk',
-        gesture: 'std',
-        img_format: 'gif',
+      walkFrames.forEach((frame) => {
+        const walkParams = new URLSearchParams({
+          figure,
+          size: 'n',
+          direction: String(dir),
+          head_direction: String(dir),
+          action: 'wlk',
+          gesture: 'std',
+          frame_num: String(frame),
+          img_format: 'png',
+        });
+        new Image().src = `/habbo-api/render?${walkParams.toString()}`;
       });
-      new Image().src = `/habbo-api/render?${walkParams.toString()}`;
     });
-    console.log(`[AvatarPreloader] Batch pre-loading initiated for: ${trimmed}`);
-  }, [userAvatarUrl]);
+  }, [avatarFigure]);
 
   // El asfalto puede funcionar como fallback de tránsito cuando no hay conexión por pasillos.
   const asphaltCellsSet = useMemo(() => {
@@ -1024,6 +1023,10 @@ export function ModularReadOnlyMap() {
             routePolyline={routePath}
             onCellClick={walkAvatar}
             avatarPosition={avatarGridPos}
+            avatarPositionRef={avatarPositionRef}
+            avatarFigure={avatarFigure ?? undefined}
+            avatarDirection={habboDirection}
+            avatarIsMoving={avatarIsMoving}
             avatarImageUrl={habboAvatarUrl}
           />
         </div>

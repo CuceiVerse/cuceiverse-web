@@ -17,32 +17,8 @@ import { getMyProfile, type AuthUser } from '../features/auth/api/auth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
 import { CampusAssistantWidget } from '../features/assistant/components/CampusAssistantWidget';
 import { ConfirmModal } from './ConfirmModal';
+import { resolveAvatarImage } from '../lib/avatarImage';
 import './MainLayout.css';
-
-function resolveAvatarImage(avatarUrl: string | null): string | null {
-  if (!avatarUrl) return null;
-  const trimmed = avatarUrl.trim();
-  if (!trimmed) return null;
-
-  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/')) {
-    return trimmed;
-  }
-
-  if (trimmed.includes('.') && trimmed.includes('-')) {
-    const params = new URLSearchParams({
-      figure: trimmed,
-      size: 's',
-      direction: '2',
-      head_direction: '2',
-      action: 'std',
-      gesture: 'std',
-      img_format: 'png',
-    });
-    return `/habbo-api/render?${params.toString()}`;
-  }
-
-  return null;
-}
 
 export const MainLayout: React.FC = () => {
   const { logout, isAdmin, token } = useAuth();
@@ -95,7 +71,7 @@ export const MainLayout: React.FC = () => {
   }, []);
 
   const avatarImage = useMemo(
-    () => resolveAvatarImage(profile?.avatarUrl ?? null),
+    () => resolveAvatarImage(profile?.avatarUrl ?? null, { size: 's' }),
     [profile?.avatarUrl],
   );
 
