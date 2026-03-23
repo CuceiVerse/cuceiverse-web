@@ -481,6 +481,48 @@ export function ModularReadOnlyMap() {
     return `/habbo-api/render?${params.toString()}`;
   }, [userAvatarUrl, habboDirection, walkFrame, avatarIsMoving]);
 
+  // Pre-load all avatar variations for the current user to avoid lag during walking
+  useEffect(() => {
+    if (!userAvatarUrl) return;
+    const trimmed = userAvatarUrl.trim();
+    if (!trimmed || trimmed.startsWith('http') || trimmed.startsWith('/') || !trimmed.includes('.') || !trimmed.includes('-')) return;
+
+    const directions = [0, 1, 2, 3, 4, 5, 6, 7];
+    const walkingFrames = [0, 1, 2, 3];
+    
+    // Pre-load each direction and action
+    directions.forEach(dir => {
+      // 1. Idle frame
+      const idleParams = new URLSearchParams({
+        figure: trimmed,
+        size: 'n',
+        direction: String(dir),
+        head_direction: String(dir),
+        action: 'std',
+        gesture: 'std',
+        frame_num: '0',
+        img_format: 'png',
+      });
+      new Image().src = `/habbo-api/render?${idleParams.toString()}`;
+
+      // 2. Walking frames
+      walkingFrames.forEach(fn => {
+        const walkParams = new URLSearchParams({
+          figure: trimmed,
+          size: 'n',
+          direction: String(dir),
+          head_direction: String(dir),
+          action: 'wlk',
+          gesture: 'std',
+          frame_num: String(fn),
+          img_format: 'png',
+        });
+        new Image().src = `/habbo-api/render?${walkParams.toString()}`;
+      });
+    });
+    console.log(`[AvatarPreloader] Batch pre-loading initiated for: ${trimmed}`);
+  }, [userAvatarUrl]);
+
   // El asfalto puede funcionar como fallback de tránsito cuando no hay conexión por pasillos.
   const asphaltCellsSet = useMemo(() => {
     const set = new Set<string>();
