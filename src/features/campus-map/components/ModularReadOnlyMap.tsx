@@ -3,7 +3,6 @@ import { ChevronDown, Flag, MapPin } from 'lucide-react';
 
 import { useAuth } from '../../../context/useAuth';
 import { fetchModularMapLayout } from '../api/mapaAdmin';
-import { fetchPuntosInteres } from '../api/puntosInteres';
 import campusModularSeed from '../data/campusModularSeed.json';
 import { cellKey, expandBlockCells } from '../editor/buildingAdjacency';
 import { gridAStarPath, snapToPathTile } from '../lib/gridAStar';
@@ -11,7 +10,6 @@ import { loadRuntimeSeed } from '../lib/runtimeSeed';
 import { useAvatarWalk } from '../hooks/useAvatarWalk';
 import { getMyProfile } from '../../../features/auth/api/auth';
 import { ModularMapCanvas } from './ModularMapCanvas';
-import { poiTypeLabels, type PoiType, type PuntoInteres } from '../types';
 import type {
   BuildingBlock,
   GridCell,
@@ -28,49 +26,19 @@ type MapWaypoint = {
   id: string;
   label: string;
   cell: GridCell;
-  kind: 'poi-prop' | 'building' | 'poi-db' | 'avatar';
-  buildingType?: ModularBuilding['type'];
-  poiType?: PoiType;
+  kind: 'poi-prop' | 'building' | 'access';
+};
+type VisibilityFilters = {
+  buildings: boolean;
+  services: boolean;
+  infrastructure: boolean;
+  decoration: boolean;
 };
 
-const AVATAR_ORIGIN_ID = 'avatar::current';
-
-type WaypointFilter =
-  | 'all'
-  | 'kind:building'
-  | 'kind:poi-db'
-  | 'kind:poi-prop'
-  | `buildingType:${ModularBuilding['type']}`
-  | `poiType:${PoiType}`;
-
-const buildingTypeLabels: Record<ModularBuilding['type'], string> = {
-  academic: 'Académico',
-  administrative: 'Administrativo',
-  services: 'Servicios',
-  sports: 'Deportivo',
-  research: 'Investigación',
-  mixed: 'Mixto',
-};
-
-function applyWaypointFilter(waypoint: MapWaypoint, filter: WaypointFilter): boolean {
-  if (filter === 'all') return true;
-
-  if (filter === 'kind:building') return waypoint.kind === 'building';
-  if (filter === 'kind:poi-db') return waypoint.kind === 'poi-db';
-  if (filter === 'kind:poi-prop') return waypoint.kind === 'poi-prop';
-
-  if (filter.startsWith('buildingType:')) {
-    const type = filter.replace('buildingType:', '') as ModularBuilding['type'];
-    return waypoint.kind === 'building' && waypoint.buildingType === type;
-  }
-
-  if (filter.startsWith('poiType:')) {
-    const type = filter.replace('poiType:', '') as PoiType;
-    return waypoint.kind === 'poi-db' && waypoint.poiType === type;
-  }
-
-  return true;
-}
+const SERVICE_PROP_KINDS = new Set<PropKind>(['poi', 'bathroom', 'trash']);
+const INFRA_PROP_KINDS = new Set<PropKind>(['asphalt', 'access-vehicular', 'access-pedestrian', 'car', 'motorcycle']);
+const DECOR_PROP_KINDS = new Set<PropKind>(['tree', 'shrub', 'bench', 'park', 'track']);
+const ACCESS_PROP_KINDS = new Set<PropKind>(['access-pedestrian', 'access-vehicular']);
 
 function ensureWaypointIncluded(
   candidates: MapWaypoint[],
@@ -78,7 +46,6 @@ function ensureWaypointIncluded(
   fallback: MapWaypoint[],
 ): MapWaypoint[] {
   if (!selectedId) return candidates;
-  if (selectedId === AVATAR_ORIGIN_ID) return candidates;
   if (candidates.some((w) => w.id === selectedId)) return candidates;
   const selected = fallback.find((w) => w.id === selectedId);
   return selected ? [selected, ...candidates] : candidates;
@@ -97,7 +64,54 @@ function centerOfCell(cell: GridCell): { x: number; y: number } {
 }
 
 function isPoiWaypoint(kind: MapWaypoint['kind']): boolean {
-  return kind === 'poi-prop' || kind === 'poi-db';
+  return kind === 'poi-prop';
+}
+
+function getWaypointTarget(waypoint: MapWaypoint): { targetKind: 'building' | 'prop'; targetId: string } | null {
+  if (waypoint.kind === 'building' && waypoint.id.startsWith('building::')) {
+    return { targetKind: 'building', targetId: waypoint.id.slice('building::'.length) };
+  }
+  if (waypoint.kind === 'poi-prop' && waypoint.id.startsWith('prop::')) {
+    return { targetKind: 'prop', targetId: waypoint.id.slice('prop::'.length) };
+  }
+  return null;
+}
+
+function pickBestAccessCellForWaypoint(waypoint: MapWaypoint, layout: ModularMapSeed): GridCell | null {
+  const target = getWaypointTarget(waypoint);
+  if (!target) return null;
+
+  const candidates = layout.props.filter((prop) => {
+    const kind = normalizePropKind(String(prop.kind));
+    if (!ACCESS_PROP_KINDS.has(kind)) return false;
+    const meta = prop.metadata ?? {};
+    return meta.accessTargetKind === target.targetKind && meta.accessTargetId === target.targetId;
+  });
+
+  if (candidates.length === 0) return null;
+
+  const originCell = waypoint.cell;
+  const score = (prop: MapProp): number => {
+    const dx = Math.abs(prop.cell.x - originCell.x);
+    const dy = Math.abs(prop.cell.y - originCell.y);
+    const base = dx + dy;
+    // Prioriza peatonal sobre vehicular cuando empatan por distancia.
+    const bias = prop.kind === 'access-pedestrian' ? -0.25 : 0;
+    return base + bias;
+  };
+
+  let best = candidates[0];
+  let bestScore = score(best);
+  for (let i = 1; i < candidates.length; i += 1) {
+    const next = candidates[i];
+    const nextScore = score(next);
+    if (nextScore < bestScore) {
+      best = next;
+      bestScore = nextScore;
+    }
+  }
+
+  return best.cell;
 }
 
 function dedupePolyline(points: Array<{ x: number; y: number }>): Array<{ x: number; y: number }> {
@@ -353,11 +367,15 @@ export function ModularReadOnlyMap() {
   const [status, setStatus] = useState('Cargando mapa modular...');
   const [isSyncing, setIsSyncing] = useState(true);
   const [viewMode, setViewMode] = useState<'isometric' | '2d'>(getInitialViewMode);
-  const [dbPois, setDbPois] = useState<PuntoInteres[]>([]);
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [originId, setOriginId] = useState('');
   const [destinationId, setDestinationId] = useState('');
-  const [waypointFilter, setWaypointFilter] = useState<WaypointFilter>('all');
+  const [visibility, setVisibility] = useState<VisibilityFilters>({
+    buildings: true,
+    services: true,
+    infrastructure: true,
+    decoration: true,
+  });
   /** Ruta visual (puede incluir puntos fraccionales para centro de POI). */
   const [routePath, setRoutePath] = useState<Array<{ x: number; y: number }>>([]);
   const [routeTileCount, setRouteTileCount] = useState(0);
@@ -412,27 +430,6 @@ export function ModularReadOnlyMap() {
     window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
   }, [viewMode]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    fetchPuntosInteres({ tipo: 'all', edificio: '', soloActivos: true })
-      .then((items) => {
-        if (cancelled) {
-          return;
-        }
-          setDbPois(items);
-      })
-      .catch(() => {
-        if (!cancelled) {
-            setDbPois([]);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   // Load user avatar from profile
   useEffect(() => {
     if (!token) { setUserAvatarUrl(null); return; }
@@ -450,54 +447,89 @@ export function ModularReadOnlyMap() {
     const result: MapWaypoint[] = [];
 
     // 1) POI props colocados en el editor (kind === 'poi' con etiqueta)
-    for (const prop of layout.props) {
-      if (prop.kind !== 'poi') continue;
-      const label = prop.metadata?.label?.trim() || prop.id;
-      result.push({ id: `prop::${prop.id}`, label, cell: prop.cell, kind: 'poi-prop' });
+    if (visibility.services) {
+      for (const prop of layout.props) {
+        if (prop.kind !== 'poi') continue;
+        const label = prop.metadata?.label?.trim();
+        if (!label) continue;
+        result.push({ id: `prop::${prop.id}`, label, cell: prop.cell, kind: 'poi-prop' });
+      }
     }
 
     // 2) Edificios creados en el editor (con nombre)
-    for (const building of layout.buildings) {
-      if (!building.name.trim()) continue;
-      // Calcular celda centroide del primer bloque
-      const anchor = building.blocks[0]?.anchor ?? { x: 0, y: 0 };
-      result.push({
-        id: `building::${building.id}`,
-        label: `🏛 ${building.name}`,
-        cell: anchor,
-        kind: 'building',
-        buildingType: normalizeBuildingType(building.type),
-      });
+    if (visibility.buildings) {
+      for (const building of layout.buildings) {
+        if (!building.name.trim()) continue;
+        // Calcular celda centroide del primer bloque
+        const anchor = building.blocks[0]?.anchor ?? { x: 0, y: 0 };
+        result.push({
+          id: `building::${building.id}`,
+          label: building.name,
+          cell: anchor,
+          kind: 'building',
+        });
+      }
     }
 
-    // 3) POIs de BD (con coordenadas de cuadrícula)
-    for (const poi of dbPois) {
-      if (poi.coordenadaXGrid == null || poi.coordenadaYGrid == null) continue;
-      result.push({
-        id: `db::${poi.id}`,
-        label: `📍 ${poi.nombre}`,
-        cell: { x: Math.round(poi.coordenadaXGrid), y: Math.round(poi.coordenadaYGrid) },
-        kind: 'poi-db',
-        poiType: poi.tipo,
-      });
+    // 3) Puntos de acceso (props access-*)
+    if (visibility.infrastructure) {
+      for (const prop of layout.props) {
+        const kind = normalizePropKind(String(prop.kind));
+        if (kind !== 'access-pedestrian' && kind !== 'access-vehicular') continue;
+        const label = kind === 'access-pedestrian' ? 'Acceso peatonal' : 'Acceso vehicular';
+        result.push({
+          id: `access::${prop.id}`,
+          label,
+          cell: prop.cell,
+          kind: 'access',
+        });
+      }
     }
 
     return result;
-  }, [layout.props, layout.buildings, dbPois]);
+  }, [layout.props, layout.buildings, visibility.buildings, visibility.services, visibility.infrastructure]);
 
   const filteredWaypoints = useMemo(() => {
-    const filtered = waypoints.filter((wp) => applyWaypointFilter(wp, waypointFilter));
     return {
-      forOrigin: ensureWaypointIncluded(filtered, originId, waypoints),
-      forDestination: ensureWaypointIncluded(filtered, destinationId, waypoints),
+      forOrigin: ensureWaypointIncluded(waypoints, originId, waypoints),
+      forDestination: ensureWaypointIncluded(waypoints, destinationId, waypoints),
     };
-  }, [waypoints, waypointFilter, originId, destinationId]);
-
-  // Selección automática de primeros dos waypoints al cargar
-  useEffect(() => {
-    if (waypoints.length > 0 && !originId) setOriginId(waypoints[0].id);
-    if (waypoints.length > 1 && !destinationId) setDestinationId(waypoints[1].id);
   }, [waypoints, originId, destinationId]);
+
+  const canvasViewerState = useMemo(() => {
+    const nextBuildingsById = visibility.buildings ? viewerState.buildingsById : {};
+    const nextBlocksById = visibility.buildings ? viewerState.blocksById : {};
+
+    const nextPropsById: Record<string, MapProp> = {};
+    for (const [id, prop] of Object.entries(viewerState.propsById)) {
+      const kind = prop.kind as PropKind;
+
+      if (SERVICE_PROP_KINDS.has(kind)) {
+        if (visibility.services) nextPropsById[id] = prop;
+        continue;
+      }
+
+      if (INFRA_PROP_KINDS.has(kind)) {
+        if (visibility.infrastructure) nextPropsById[id] = prop;
+        continue;
+      }
+
+      if (DECOR_PROP_KINDS.has(kind)) {
+        if (visibility.decoration) nextPropsById[id] = prop;
+        continue;
+      }
+
+      // Por defecto, tratamos props desconocidos como decoración.
+      if (visibility.decoration) nextPropsById[id] = prop;
+    }
+
+    return {
+      ...viewerState,
+      buildingsById: nextBuildingsById,
+      blocksById: nextBlocksById,
+      propsById: nextPropsById,
+    };
+  }, [viewerState, visibility]);
 
   // Celdas ocupadas por edificios (colisión)
   const buildingOccupiedCellsSet = useMemo(() => {
@@ -551,7 +583,7 @@ export function ModularReadOnlyMap() {
 
     const directions = [0, 1, 2, 3, 4, 5, 6, 7];
     const walkingFrames = [0, 1, 2, 3];
-    
+
     // Pre-load each direction and action
     directions.forEach(dir => {
       // 1. Idle frame
@@ -618,9 +650,14 @@ export function ModularReadOnlyMap() {
 
     setRouteLoading(true);
 
+    const resolvedOriginCell = pickBestAccessCellForWaypoint(origin, layout) ?? origin.cell;
+    const resolvedDestCell = pickBestAccessCellForWaypoint(dest, layout) ?? dest.cell;
+    const resolvedOrigin = { ...origin, cell: resolvedOriginCell };
+    const resolvedDest = { ...dest, cell: resolvedDestCell };
+
     // 1) Intento principal: solo pasillos
-    const snappedOriginPath = snapToPathTile(origin.cell, pathCellsSet);
-    const snappedDestPath = snapToPathTile(dest.cell, pathCellsSet);
+    const snappedOriginPath = snapToPathTile(resolvedOrigin.cell, pathCellsSet);
+    const snappedDestPath = snapToPathTile(resolvedDest.cell, pathCellsSet);
     const pathOnly =
       snappedOriginPath && snappedDestPath
         ? gridAStarPath(snappedOriginPath, snappedDestPath, pathCellsSet)
@@ -629,9 +666,9 @@ export function ModularReadOnlyMap() {
     if (pathOnly.length > 0) {
       const centeredPath = pathOnly.map(centerOfCell);
       const withPoiCenters = dedupePolyline([
-        ...(isPoiWaypoint(origin.kind) ? [centerOfCell(origin.cell)] : []),
+        ...(isPoiWaypoint(resolvedOrigin.kind) ? [centerOfCell(resolvedOrigin.cell)] : []),
         ...centeredPath,
-        ...(isPoiWaypoint(dest.kind) ? [centerOfCell(dest.cell)] : []),
+        ...(isPoiWaypoint(resolvedDest.kind) ? [centerOfCell(resolvedDest.cell)] : []),
       ]);
       setRoutePath(withPoiCenters);
       setRouteTileCount(pathOnly.length);
@@ -641,8 +678,8 @@ export function ModularReadOnlyMap() {
     }
 
     // 2) Fallback: pasillos + asfalto
-    const snappedOriginMixed = snapToPathTile(origin.cell, traversableWithAsphaltSet);
-    const snappedDestMixed = snapToPathTile(dest.cell, traversableWithAsphaltSet);
+    const snappedOriginMixed = snapToPathTile(resolvedOrigin.cell, traversableWithAsphaltSet);
+    const snappedDestMixed = snapToPathTile(resolvedDest.cell, traversableWithAsphaltSet);
 
     if (!snappedOriginMixed) {
       setRouteError(`No hay pasillos ni asfalto cerca del origen "${origin.label}".`);
@@ -665,9 +702,9 @@ export function ModularReadOnlyMap() {
 
     const centeredPath = path.map(centerOfCell);
     const withPoiCenters = dedupePolyline([
-      ...(isPoiWaypoint(origin.kind) ? [centerOfCell(origin.cell)] : []),
+      ...(isPoiWaypoint(resolvedOrigin.kind) ? [centerOfCell(resolvedOrigin.cell)] : []),
       ...centeredPath,
-      ...(isPoiWaypoint(dest.kind) ? [centerOfCell(dest.cell)] : []),
+      ...(isPoiWaypoint(resolvedDest.kind) ? [centerOfCell(resolvedDest.cell)] : []),
     ]);
 
     setRouteNetwork('mixta');
@@ -676,18 +713,7 @@ export function ModularReadOnlyMap() {
   }
 
   function handleComputeRoute() {
-    const origin =
-      originId === AVATAR_ORIGIN_ID
-        ? {
-            id: AVATAR_ORIGIN_ID,
-            label: 'Mi ubicación actual',
-            cell: {
-              x: Math.floor(avatarGridPos.x),
-              y: Math.floor(avatarGridPos.y),
-            },
-            kind: 'avatar' as const,
-          }
-        : waypoints.find((w) => w.id === originId);
+    const origin = waypoints.find((w) => w.id === originId);
     const dest = waypoints.find((w) => w.id === destinationId);
     if (!origin || !dest) {
       setRouteError('Selecciona origen y destino.');
@@ -696,9 +722,7 @@ export function ModularReadOnlyMap() {
     computeRouteForWaypoints(origin, dest);
   }
 
-  const originLabel = originId === AVATAR_ORIGIN_ID
-    ? 'Mi ubicación actual'
-    : waypoints.find((w) => w.id === originId)?.label ?? originId;
+  const originLabel = waypoints.find((w) => w.id === originId)?.label ?? originId;
   const destinationLabel = waypoints.find((w) => w.id === destinationId)?.label ?? destinationId;
 
   useEffect(() => {
@@ -711,9 +735,6 @@ export function ModularReadOnlyMap() {
       const normalizedOrigin = normalizeQuery(detail.originLabel ?? '');
 
       const destinationWaypoint =
-        (detail.destinationPoiId
-          ? waypoints.find((item) => item.id === `db::${detail.destinationPoiId}`)
-          : null) ??
         waypoints.find((item) => {
           if (!normalizedDestination) return false;
           const label = normalizeQuery(item.label);
@@ -726,16 +747,11 @@ export function ModularReadOnlyMap() {
       }
 
       const originWaypoint =
-        (detail.originPoiId
-          ? waypoints.find((item) => item.id === `db::${detail.originPoiId}`)
-          : null) ??
         waypoints.find((item) => {
           if (!normalizedOrigin) return false;
           const label = normalizeQuery(item.label);
           return label.includes(normalizedOrigin) || normalizedOrigin.includes(label);
-        }) ??
-        waypoints.find((item) => item.id === originId) ??
-        waypoints[0];
+        }) ?? waypoints.find((item) => item.id === originId);
 
       if (!originWaypoint || originWaypoint.id === destinationWaypoint.id) {
         setDestinationId(destinationWaypoint.id);
@@ -755,7 +771,7 @@ export function ModularReadOnlyMap() {
   }, [waypoints, originId, pathCellsSet, traversableWithAsphaltSet]);
 
   return (
-    <section className="modular-read-shell h-full flex flex-col p-6 gap-4 overflow-hidden">
+    <section className="modular-read-shell h-full flex flex-col p-3 sm:p-6 gap-4 overflow-hidden">
       {/* --- ENCABEZADO Y PANEL DE NAVEGACIÓN COMBINADOS --- */}
       <section className="glass-panel relative flex flex-col rounded-[28px] border border-slate-700/50 bg-[#070E23]/95 shadow-[0_20px_45px_rgba(2,6,23,0.45)] overflow-hidden">
         {/* Decorative background blur */}
@@ -764,10 +780,7 @@ export function ModularReadOnlyMap() {
         </div>
 
         {/* --- ALWAYS VISIBLE HEADER --- */}
-        <div 
-          className="relative z-10 flex flex-wrap items-center justify-between gap-6"
-          style={{ padding: '1.25rem 2rem' }}
-        >
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-6 px-4 py-4 sm:px-8 sm:py-5">
           {/* Clickable Title Area to toggle Navigation */}
           <button
             type="button"
@@ -783,7 +796,7 @@ export function ModularReadOnlyMap() {
             </p>
             <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl flex items-center gap-3">
               Mapa modular del campus
-              <span 
+              <span
                 className="flex-none text-slate-400 transition-transform duration-300 group-hover:text-cyan-400"
                 style={{ transform: navOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
               >
@@ -794,8 +807,8 @@ export function ModularReadOnlyMap() {
 
           {/* Controls Area (Status & View Toggle) */}
           <div className="flex flex-wrap items-center gap-4">
-            <span 
-              className="flex items-center gap-2.5 rounded-full border border-slate-700/60 bg-[#0c1631] px-4 py-2 text-[12px] font-medium text-slate-300 shadow-sm" 
+            <span
+              className="flex items-center gap-2.5 rounded-full border border-slate-700/60 bg-[#0c1631] px-4 py-2 text-[12px] font-medium text-slate-300 shadow-sm"
               title={statusLabel}
             >
               <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
@@ -805,22 +818,20 @@ export function ModularReadOnlyMap() {
             <div className="inline-flex items-center rounded-full border border-slate-600/50 bg-slate-900/80 p-1 shadow-inner">
               <button
                 type="button"
-                className={`min-w-[100px] rounded-full px-3 py-2 text-xs font-bold transition-all ${
-                  viewMode === 'isometric' 
-                    ? 'bg-cyan-500 text-cyan-950 shadow-[0_0_15px_rgba(34,211,238,0.4)]' 
+                className={`min-w-[100px] rounded-full px-3 py-2 text-xs font-bold transition-all ${viewMode === 'isometric'
+                    ? 'bg-cyan-500 text-cyan-950 shadow-[0_0_15px_rgba(34,211,238,0.4)]'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
+                  }`}
                 onClick={() => setViewMode('isometric')}
               >
                 Isométrica
               </button>
               <button
                 type="button"
-                className={`min-w-[72px] rounded-full px-3 py-2 text-xs font-bold transition-all ${
-                  viewMode === '2d' 
-                    ? 'bg-emerald-500 text-emerald-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]' 
+                className={`min-w-[72px] rounded-full px-3 py-2 text-xs font-bold transition-all ${viewMode === '2d'
+                    ? 'bg-emerald-500 text-emerald-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                }`}
+                  }`}
                 onClick={() => setViewMode('2d')}
               >
                 2D
@@ -832,14 +843,14 @@ export function ModularReadOnlyMap() {
         {/* --- COLLAPSIBLE NAVIGATION BODY --- */}
         <div
           style={{
-            maxHeight: navOpen ? '600px' : '0px',
+            maxHeight: navOpen ? 'min(70vh, 640px)' : '0px',
             transition: 'max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
             overflow: 'hidden',
           }}
           className="relative z-10"
         >
           {/* Inner padding for formatting the dropdown content */}
-          <div className="border-t border-slate-700/50 px-8 py-5 space-y-4">
+          <div className="border-t border-slate-700/50 px-4 py-4 sm:px-8 sm:py-5 space-y-4">
             {!navOpen ? null : (
               <p className="text-[13px] text-slate-400">
                 Selecciona origen y destino para trazar una ruta caminable.
@@ -857,18 +868,12 @@ export function ModularReadOnlyMap() {
                     value={originId}
                     onChange={(event) => { setOriginId(event.target.value); setRoutePath([]); setRouteTileCount(0); setRouteError(null); }}
                   >
-                    {waypoints.length === 0 ? (
-                      <option value="">Sin puntos en el mapa</option>
-                    ) : (
-                      <>
-                        <option value={AVATAR_ORIGIN_ID}>Mi ubicación actual</option>
-                        {filteredWaypoints.forOrigin.map((wp) => (
-                          <option key={wp.id} value={wp.id}>
-                            {wp.label}
-                          </option>
-                        ))}
-                      </>
-                    )}
+                    <option value="">Selecciona...</option>
+                    {filteredWaypoints.forOrigin.map((wp) => (
+                      <option key={wp.id} value={wp.id}>
+                        {wp.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </label>
@@ -882,53 +887,70 @@ export function ModularReadOnlyMap() {
                     value={destinationId}
                     onChange={(event) => { setDestinationId(event.target.value); setRoutePath([]); setRouteTileCount(0); setRouteError(null); }}
                   >
-                    {waypoints.length === 0 ? (
-                      <option value="">Sin puntos en el mapa</option>
-                    ) : (
-                      filteredWaypoints.forDestination.map((wp) => (
-                        <option key={wp.id} value={wp.id}>
-                          {wp.label}
-                        </option>
-                      ))
-                    )}
+                    <option value="">Selecciona...</option>
+                    {filteredWaypoints.forDestination.map((wp) => (
+                      <option key={wp.id} value={wp.id}>
+                        {wp.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </label>
-              <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
-                Filtro
-                <div className="relative">
-                  <select
-                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-slate-500/60 hover:bg-[#0e1a3a] focus:border-slate-300 focus:ring-2 focus:ring-slate-500/20"
-                    style={{ paddingLeft: '1rem' }}
-                    value={waypointFilter}
-                    onChange={(event) => {
-                      setWaypointFilter(event.target.value as WaypointFilter);
-                      setRoutePath([]);
-                      setRouteTileCount(0);
-                      setRouteError(null);
-                    }}
-                  >
-                    <option value="all">Todo</option>
-                    <option value="kind:building">Solo edificios</option>
-                    <option value="kind:poi-db">Solo servicios (POIs)</option>
-                    <option value="kind:poi-prop">Solo POIs del mapa</option>
-                    <optgroup label="Edificios por tipo">
-                      {Object.entries(buildingTypeLabels).map(([type, label]) => (
-                        <option key={type} value={`buildingType:${type}` as const}>
-                          {label}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Servicios (POIs) por tipo">
-                      {Object.entries(poiTypeLabels).map(([type, label]) => (
-                        <option key={type} value={`poiType:${type}` as const}>
-                          {label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
+              <div className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300">
+                Mostrar
+                <div className="rounded-xl border border-slate-600/50 bg-[#0c1631] px-4 py-2.5 text-sm text-slate-200">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5"
+                      checked={visibility.buildings}
+                      onChange={(event) => {
+                        setVisibility((current) => ({ ...current, buildings: event.target.checked }));
+                        setRoutePath([]);
+                        setRouteTileCount(0);
+                        setRouteError(null);
+                      }}
+                    />
+                    <span>Edificios</span>
+                  </label>
+                  <label className="mt-1.5 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5"
+                      checked={visibility.services}
+                      onChange={(event) => {
+                        setVisibility((current) => ({ ...current, services: event.target.checked }));
+                        setRoutePath([]);
+                        setRouteTileCount(0);
+                        setRouteError(null);
+                      }}
+                    />
+                    <span>Servicios (POIs)</span>
+                  </label>
+                  <label className="mt-1.5 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5"
+                      checked={visibility.infrastructure}
+                      onChange={(event) => {
+                        setVisibility((current) => ({ ...current, infrastructure: event.target.checked }));
+                      }}
+                    />
+                    <span>Infraestructura</span>
+                  </label>
+                  <label className="mt-1.5 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5"
+                      checked={visibility.decoration}
+                      onChange={(event) => {
+                        setVisibility((current) => ({ ...current, decoration: event.target.checked }));
+                      }}
+                    />
+                    <span>Decoración</span>
+                  </label>
                 </div>
-              </label>
+              </div>
               <div className="flex items-end">
                 <button
                   type="button"
@@ -960,13 +982,13 @@ export function ModularReadOnlyMap() {
 
 
       {/* --- CONTENEDOR DEL MAPA ESTILIZADO CON VIÑETA MÁS SUAVE --- */}
-      <div 
-        className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]" 
+      <div
+        className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
       >
-        
+
         {/* Viñeta reducida: Menos spread y blur para que no invada los edificios */}
         <div className="pointer-events-none absolute inset-0 z-10 shadow-[inset_0_0_40px_15px_#030610]" />
-        
+
         <div className="relative z-0 h-full w-full">
           {isSyncing ? (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#030610]/80 backdrop-blur-md">
@@ -977,7 +999,7 @@ export function ModularReadOnlyMap() {
             </div>
           ) : null}
           <ModularMapCanvas
-            editorState={viewerState}
+            editorState={canvasViewerState}
             onDropPaletteItem={() => undefined}
             onPathBrushStart={() => undefined}
             onPathBrushMove={() => undefined}

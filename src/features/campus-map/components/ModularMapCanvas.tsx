@@ -7,6 +7,7 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from 'react';
 
 import { cellKey, getBuildingIdAtCell } from '../editor/buildingAdjacency';
@@ -365,6 +366,15 @@ export function ModularMapCanvas({
   const lastEraseCellKeyRef = useRef<string | null>(null);
   // Used to distinguish a click (no drag) from a pan drag in pan mode
   const panStartPosRef = useRef<{ x: number; y: number } | null>(null);
+  const activeTouchPointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchRef = useRef<{
+    initialDistance: number;
+    initialScale: number;
+    initialCameraX: number;
+    initialCameraY: number;
+    initialWorldX: number;
+    initialWorldY: number;
+  } | null>(null);
 
   const [camera, setCamera] = useState<EditorCamera>(() => ({
     ...fitCameraToBounds(
@@ -590,6 +600,63 @@ export function ModularMapCanvas({
     }
   };
 
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // En touch necesitamos gestures y evitar scroll/pinch del navegador.
+    if (event.pointerType === 'touch') {
+      event.currentTarget.setPointerCapture(event.pointerId);
+      activeTouchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (activeTouchPointersRef.current.size >= 2) {
+        const points = Array.from(activeTouchPointersRef.current.values());
+        const a = points[0];
+        const b = points[1];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const distance = Math.max(1, Math.hypot(dx, dy));
+        const midClientX = (a.x + b.x) / 2;
+        const midClientY = (a.y + b.y) / 2;
+
+        const rect = event.currentTarget.getBoundingClientRect();
+        const localX = midClientX - rect.left;
+        const localY = midClientY - rect.top;
+
+        pinchRef.current = {
+          initialDistance: distance,
+          initialScale: camera.scale,
+          initialCameraX: camera.x,
+          initialCameraY: camera.y,
+          initialWorldX: (localX - camera.x) / camera.scale,
+          initialWorldY: (localY - camera.y) / camera.scale,
+        };
+
+        setIsPanning(true);
+        panRef.current = null;
+        panStartPosRef.current = null;
+        return;
+      }
+
+      // Pan con 1 dedo solo cuando el tool sea pan.
+      if (editorState.activeTool === 'pan') {
+        panRef.current = {
+          pointerX: event.clientX,
+          pointerY: event.clientY,
+          cameraX: camera.x,
+          cameraY: camera.y,
+        };
+        panStartPosRef.current = { x: event.clientX, y: event.clientY };
+        setIsPanning(true);
+        return;
+      }
+
+      // Si no es pan, tratar como click izquierdo.
+      handleMouseDown(event);
+      return;
+    }
+
+    // mouse/pen: reusar handler existente.
+    handleMouseDown(event);
+  };
+
   const handleMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
     const pan = panRef.current;
     if (pan && (isSpacePressed || editorState.activeTool === 'pan') && isPanning) {
@@ -624,6 +691,59 @@ export function ModularMapCanvas({
     }
   };
 
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch') {
+      if (activeTouchPointersRef.current.has(event.pointerId)) {
+        activeTouchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      }
+
+      // Pinch (2 dedos)
+      if (pinchRef.current && activeTouchPointersRef.current.size >= 2) {
+        const points = Array.from(activeTouchPointersRef.current.values());
+        const a = points[0];
+        const b = points[1];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const distance = Math.max(1, Math.hypot(dx, dy));
+        const midClientX = (a.x + b.x) / 2;
+        const midClientY = (a.y + b.y) / 2;
+
+        const rect = event.currentTarget.getBoundingClientRect();
+        const localX = midClientX - rect.left;
+        const localY = midClientY - rect.top;
+
+        const pinch = pinchRef.current;
+        const rawScale = pinch.initialScale * (distance / pinch.initialDistance);
+        const nextScale = clamp(rawScale, MIN_ZOOM, MAX_ZOOM);
+
+        setCamera({
+          x: localX - pinch.initialWorldX * nextScale,
+          y: localY - pinch.initialWorldY * nextScale,
+          scale: nextScale,
+        });
+        return;
+      }
+
+      // Pan con 1 dedo
+      const pan = panRef.current;
+      if (pan && editorState.activeTool === 'pan' && isPanning) {
+        setCamera((current) => ({
+          ...current,
+          x: pan.cameraX + (event.clientX - pan.pointerX),
+          y: pan.cameraY + (event.clientY - pan.pointerY),
+        }));
+        return;
+      }
+
+      // Hover/drag en herramientas: reusar handler.
+      handleMouseMove(event);
+      return;
+    }
+
+    // mouse/pen
+    handleMouseMove(event);
+  };
+
   const finishInteraction = (event?: ReactMouseEvent<HTMLDivElement>) => {
     if (brushActiveRef.current) {
       brushActiveRef.current = false;
@@ -652,6 +772,17 @@ export function ModularMapCanvas({
     propDragRef.current = null;
     setIsPanning(false);
     panRef.current = null;
+  };
+
+  const finishPointerInteraction = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch') {
+      activeTouchPointersRef.current.delete(event.pointerId);
+      if (activeTouchPointersRef.current.size < 2) {
+        pinchRef.current = null;
+      }
+    }
+
+    finishInteraction(event);
   };
 
   const handleDrop = (event: ReactDragEvent<HTMLDivElement>) => {
@@ -709,11 +840,12 @@ export function ModularMapCanvas({
     <div
       ref={viewportRef}
       className={`modular-canvas-shell ${canvasCursorClass}`}
-      style={{ position: 'relative' }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={finishInteraction}
-      onMouseLeave={finishInteraction}
+      style={{ position: 'relative', touchAction: 'none' }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishPointerInteraction}
+      onPointerCancel={finishPointerInteraction}
+      onPointerLeave={finishPointerInteraction}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onContextMenu={(event) => event.preventDefault()}
@@ -1039,16 +1171,16 @@ export function ModularMapCanvas({
                   editorState.activeTool === 'area-block'
                     ? 0x58a95a
                     : editorState.activeTool === 'building-block'
-                    ? 0x4f78ff
-                    : editorState.activeTool === 'path-brush'
-                      ? 0x2d7f7a
-                      : editorState.activeTool === 'erase'
-                        ? 0xd34d4d
-                        : editorState.activeTool === 'prop'
-                          ? 0x4f9464
-                          : hoverBuildingId
-                            ? 0xf2c65c
-                            : 0xffffff;
+                      ? 0x4f78ff
+                      : editorState.activeTool === 'path-brush'
+                        ? 0x2d7f7a
+                        : editorState.activeTool === 'erase'
+                          ? 0xd34d4d
+                          : editorState.activeTool === 'prop'
+                            ? 0x4f9464
+                            : hoverBuildingId
+                              ? 0xf2c65c
+                              : 0xffffff;
 
                 if (
                   editorState.activeTool === 'building-block' ||

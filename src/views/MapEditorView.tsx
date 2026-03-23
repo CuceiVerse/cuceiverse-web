@@ -7,14 +7,17 @@ import {
   saveModularMapLayout,
 } from '../features/campus-map/api/mapaAdmin';
 import { BuildingLabelModal } from '../features/campus-map/components/BuildingLabelModal';
+import { AccessPointConfigModal } from '../features/campus-map/components/AccessPointConfigModal';
 import { ModularMapCanvas } from '../features/campus-map/components/ModularMapCanvas';
 import { ModularToolPalette } from '../features/campus-map/components/ModularToolPalette';
 import { PoiConfigModal } from '../features/campus-map/components/PoiConfigModal';
 import campusModularSeed from '../features/campus-map/data/campusModularSeed.json';
 import {
+  selectAccessPointDraft,
   selectBuildingDraft,
   selectPoiDraft,
   useModularMapStore,
+  type AccessPointDraft,
   type PoiDraft,
 } from '../features/campus-map/editor/useModularMapStore';
 import {
@@ -85,6 +88,7 @@ export function MapEditorView() {
   const updateBuildingLabel = useModularMapStore((state) => state.updateBuildingLabel);
   const updatePropMetadata = useModularMapStore((state) => state.updatePropMetadata);
   const openBuildingLabelModal = useModularMapStore((state) => state.openBuildingLabelModal);
+  const clearSelection = useModularMapStore((state) => state.clearSelection);
   const serializeForSave = useModularMapStore((state) => state.serializeForSave);
 
   const [buildingDraft, setBuildingDraft] = useState(() =>
@@ -92,6 +96,9 @@ export function MapEditorView() {
   );
   const [poiDraft, setPoiDraft] = useState<PoiDraft | null>(() =>
     selectPoiDraft(useModularMapStore.getState()),
+  );
+  const [accessDraft, setAccessDraft] = useState<AccessPointDraft | null>(() =>
+    selectAccessPointDraft(useModularMapStore.getState()),
   );
   const [message, setMessage] = useState(
     'Arrastra bloques 2x2 o props al canvas.',
@@ -120,6 +127,7 @@ export function MapEditorView() {
   const isDirty = payloadString !== lastSavedPayloadRef.current;
   const buildingDraftFromStore = useModularMapStore(useShallow(selectBuildingDraft));
   const poiDraftFromStore = useModularMapStore(useShallow(selectPoiDraft));
+  const accessDraftFromStore = useModularMapStore(useShallow(selectAccessPointDraft));
 
   useEffect(() => {
     setBuildingDraft(buildingDraftFromStore);
@@ -128,6 +136,10 @@ export function MapEditorView() {
   useEffect(() => {
     setPoiDraft(poiDraftFromStore);
   }, [poiDraftFromStore]);
+
+  useEffect(() => {
+    setAccessDraft(accessDraftFromStore);
+  }, [accessDraftFromStore]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -204,10 +216,32 @@ export function MapEditorView() {
       const store = useModularMapStore.getState();
       setPoiDraft(selectPoiDraft(store));
     }
+    if (
+      result.ok &&
+      (dragPayload.propKind === 'access-vehicular' || dragPayload.propKind === 'access-pedestrian') &&
+      result.propId
+    ) {
+      const store = useModularMapStore.getState();
+      setAccessDraft(selectAccessPointDraft(store));
+    }
     setMessage(
       result.ok
         ? `Prop ${dragPayload.propKind} colocado.`
         : result.reason ?? 'No se pudo colocar el prop.',
+    );
+  };
+
+  const handleApplyAccessConfig = (draft: AccessPointDraft) => {
+    updatePropMetadata(draft.id, {
+      accessTargetKind: draft.targetKind,
+      accessTargetId: draft.targetId,
+    });
+    clearSelection();
+    setAccessDraft(null);
+    setMessage(
+      draft.targetKind && draft.targetId
+        ? 'Acceso asignado al destino.'
+        : 'Acceso sin asignar.'
     );
   };
 
@@ -374,6 +408,7 @@ export function MapEditorView() {
     } else if (result.reason) {
       setMessage(result.reason);
     }
+    clearSelection();
     setPoiDraft(null);
   };
 
@@ -390,7 +425,7 @@ export function MapEditorView() {
   return (
     <section className="map-editor-view--modular flex-1 relative w-full overflow-hidden">
       <div className="map-editor-fullbleed-root absolute inset-0 z-0 overflow-hidden bg-slate-900">
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[200] flex items-center h-10 px-4 bg-slate-900/90 backdrop-blur-xl rounded-full border border-slate-700 shadow-2xl shadow-amber-500/10 pointer-events-none whitespace-nowrap">
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[200] flex items-center h-10 px-4 bg-slate-900/90 backdrop-blur-xl rounded-full border border-slate-700 shadow-2xl shadow-amber-500/10 pointer-events-none max-w-[calc(100vw-1.5rem)] overflow-x-auto">
           <div className="flex items-center gap-2 h-full">
             <span
               className="inline-flex items-center justify-center text-amber-300 drop-shadow-[0_0_6px_rgba(251,191,36,0.45)]"
@@ -482,51 +517,54 @@ export function MapEditorView() {
           />
         </div>
 
-        <div className="map-editor-overlay-left w-80 max-h-[calc(100vh-80px)] overflow-y-auto overflow-x-hidden flex flex-col gap-4">
+        <div className="map-editor-overlay-left">
           <div className="bg-slate-900/95 backdrop-blur-sm rounded-xl border border-slate-700 shadow-2xl p-2">
-          <ModularToolPalette
-            layout="horizontal"
-            variant="tools-only"
-            activeTool={editorState.activeTool}
-            activePropKind={editorState.activePropKind}
-            activeAreaPaletteId={editorState.activeAreaPaletteId}
-            activeBuildingPaletteId={editorState.activeBuildingPaletteId}
-            buildingCount={Object.keys(editorState.buildingsById).length}
-            pathCount={Object.keys(editorState.pathsByCell).length}
-            propCount={Object.keys(editorState.propsById).length}
-            isDirty={isDirty}
-            onToolChange={setActiveTool}
-            onPropKindChange={setActivePropKind}
-            onAreaPresetChange={setActiveAreaPreset}
-            onBuildingPresetChange={setActiveBuildingPreset}
-            onSave={handleSave}
-            onReset={handleReset}
-          />
+            <ModularToolPalette
+              layout="horizontal"
+              variant="tools-only"
+              activeTool={editorState.activeTool}
+              activePropKind={editorState.activePropKind}
+              activeAreaPaletteId={editorState.activeAreaPaletteId}
+              activeBuildingPaletteId={editorState.activeBuildingPaletteId}
+              buildingCount={Object.keys(editorState.buildingsById).length}
+              pathCount={Object.keys(editorState.pathsByCell).length}
+              propCount={Object.keys(editorState.propsById).length}
+              isDirty={isDirty}
+              onToolChange={setActiveTool}
+              onPropKindChange={setActivePropKind}
+              onAreaPresetChange={setActiveAreaPreset}
+              onBuildingPresetChange={setActiveBuildingPreset}
+              onSave={handleSave}
+              onReset={handleReset}
+            />
           </div>
 
           <div className="bg-slate-900/95 backdrop-blur-sm rounded-xl border border-slate-700 shadow-2xl p-2">
-          <ModularToolPalette
-            layout="vertical"
-            variant="content-no-props"
-            activeTool={editorState.activeTool}
-            activePropKind={editorState.activePropKind}
-            activeAreaPaletteId={editorState.activeAreaPaletteId}
-            activeBuildingPaletteId={editorState.activeBuildingPaletteId}
-            buildingCount={Object.keys(editorState.buildingsById).length}
-            pathCount={Object.keys(editorState.pathsByCell).length}
-            propCount={Object.keys(editorState.propsById).length}
-            isDirty={isDirty}
-            onToolChange={setActiveTool}
-            onPropKindChange={setActivePropKind}
-            onAreaPresetChange={setActiveAreaPreset}
-            onBuildingPresetChange={setActiveBuildingPreset}
-            onSave={handleSave}
-            onReset={handleReset}
-          />
+            <ModularToolPalette
+              layout="vertical"
+              variant="content-no-props"
+              activeTool={editorState.activeTool}
+              activePropKind={editorState.activePropKind}
+              activeAreaPaletteId={editorState.activeAreaPaletteId}
+              activeBuildingPaletteId={editorState.activeBuildingPaletteId}
+              buildingCount={Object.keys(editorState.buildingsById).length}
+              pathCount={Object.keys(editorState.pathsByCell).length}
+              propCount={Object.keys(editorState.propsById).length}
+              isDirty={isDirty}
+              onToolChange={setActiveTool}
+              onPropKindChange={setActivePropKind}
+              onAreaPresetChange={setActiveAreaPreset}
+              onBuildingPresetChange={setActiveBuildingPreset}
+              onSave={handleSave}
+              onReset={handleReset}
+            />
           </div>
         </div>
 
-        <div className="absolute bottom-4 left-[350px] right-4 z-50 pointer-events-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col props-toolbar-carousel">
+        <div
+          className="absolute bottom-4 left-4 right-4 md:left-[350px] z-50 pointer-events-auto bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col props-toolbar-carousel"
+          style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+        >
           <div className="px-4 py-2 border-b border-slate-800 shrink-0">
             <h3 className="text-sm font-bold text-white">Props</h3>
           </div>
@@ -583,6 +621,16 @@ export function MapEditorView() {
         draft={poiDraft}
         onClose={() => setPoiDraft(null)}
         onSave={handleApplyPoiConfig}
+      />
+
+      <AccessPointConfigModal
+        draft={accessDraft}
+        buildings={Object.values(editorState.buildingsById)}
+        placeProps={Object.values(editorState.propsById).filter(
+          (prop) => prop.kind === 'poi' || prop.kind === 'bathroom' || prop.kind === 'trash',
+        )}
+        onClose={() => setAccessDraft(null)}
+        onSave={handleApplyAccessConfig}
       />
     </section>
   );

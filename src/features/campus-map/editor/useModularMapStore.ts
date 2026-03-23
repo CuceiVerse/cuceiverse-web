@@ -85,6 +85,7 @@ type ModularMapStore = ModularMapStoreState & {
   eraseAt: (cell: GridCell) => void;
   openBuildingLabelModal: (buildingId: string | null) => void;
   selectAt: (cell: GridCell) => void;
+  clearSelection: () => void;
   updateBuildingLabel: (draft: BuildingLabelDraft) => void;
   serializeForSave: () => ModularMapSavePayload;
 };
@@ -695,6 +696,10 @@ export const useModularMapStore = create<ModularMapStore>((set, get) => ({
     });
   },
 
+  clearSelection: () => {
+    set({ selection: null, buildingModalTargetId: null });
+  },
+
   selectAt: (cell) => {
     const state = get();
     const buildingId = getBuildingIdAtCell(cell, state.blocksById);
@@ -809,6 +814,12 @@ export type PoiDraft = {
   interestRadius: number;
 };
 
+export type AccessPointDraft = {
+  id: string;
+  targetKind: '' | 'building' | 'prop';
+  targetId: string;
+};
+
 export function selectPoiDraft(state: ModularMapStore): PoiDraft | null {
   if (state.selection?.kind !== 'prop') {
     return null;
@@ -824,5 +835,30 @@ export function selectPoiDraft(state: ModularMapStore): PoiDraft | null {
     id: prop.id,
     label: prop.metadata?.label ?? '',
     interestRadius: Number.isFinite(rawRadius) ? Math.max(1, Math.min(12, Math.round(rawRadius))) : 2,
+  };
+}
+
+export function selectAccessPointDraft(state: ModularMapStore): AccessPointDraft | null {
+  if (state.selection?.kind !== 'prop') {
+    return null;
+  }
+
+  const prop = state.propsById[state.selection.id];
+  if (!prop) {
+    return null;
+  }
+
+  if (prop.kind !== 'access-vehicular' && prop.kind !== 'access-pedestrian') {
+    return null;
+  }
+
+  const rawTargetKind = (prop.metadata?.accessTargetKind ?? '') as AccessPointDraft['targetKind'];
+  const targetKind = rawTargetKind === 'building' || rawTargetKind === 'prop' ? rawTargetKind : '';
+  const targetId = (prop.metadata?.accessTargetId ?? '').trim();
+
+  return {
+    id: prop.id,
+    targetKind,
+    targetId: targetKind ? targetId : '',
   };
 }
