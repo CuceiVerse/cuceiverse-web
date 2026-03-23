@@ -51,7 +51,7 @@ function MarkdownRenderer({ text }: { text: string }) {
     parts.push({ type: 'link', label: match[1], url: match[2] });
     lastIndex = linkRegex.lastIndex;
   }
-  
+
   if (lastIndex < text.length) {
     parts.push({ type: 'text', content: text.substring(lastIndex) });
   }
@@ -76,10 +76,10 @@ function MarkdownRenderer({ text }: { text: string }) {
 
         // Process bold and newlines within the text
         const content = part.content as string;
-        
+
         // Handle double newlines as paragraphs first
         const paragraphs = content.split('\n\n');
-        
+
         return (
           <span key={i}>
             {paragraphs.map((para, pIdx) => (
@@ -88,7 +88,7 @@ function MarkdownRenderer({ text }: { text: string }) {
                   if (t.startsWith('**') && t.endsWith('**')) {
                     return <strong key={j} className="text-white font-semibold">{t.slice(2, -2)}</strong>;
                   }
-                  
+
                   const lines = t.split('\n');
                   return (
                     <span key={j}>
@@ -211,8 +211,8 @@ export function CampusAssistantWidget() {
 
   return (
     <>
-        {open ? (
-        <section className="fixed bottom-6 left-6 z-[1200] flex h-[36rem] w-[24rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/90 shadow-[0_0_80px_rgba(0,0,0,0.8),0_0_30px_rgba(34,211,238,0.15)] backdrop-blur-xl">
+      {open ? (
+        <section className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-[calc(1.5rem+env(safe-area-inset-left))] z-[1200] flex h-[min(36rem,calc(100dvh-2rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/90 shadow-[0_0_80px_rgba(0,0,0,0.8),0_0_30px_rgba(34,211,238,0.15)] backdrop-blur-xl">
           <header className="flex items-center justify-between border-b border-white/5 bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-emerald-400 text-slate-900 shadow-[0_0_15px_rgba(34,211,238,0.4)]">
@@ -233,11 +233,10 @@ export function CampusAssistantWidget() {
             {entries.map((entry) => (
               <article
                 key={entry.id}
-                className={`relative max-w-[88%] rounded-2xl px-4 py-2.5 text-[0.93rem] leading-relaxed shadow-md transition-all ${
-                  entry.role === 'assistant'
+                className={`relative max-w-[88%] rounded-2xl px-4 py-2.5 text-[0.93rem] leading-relaxed shadow-md transition-all ${entry.role === 'assistant'
                     ? 'mr-auto rounded-tl-none bg-[#202c33] text-gray-100'
                     : 'ml-auto rounded-tr-none bg-[#005c4b] text-white'
-                }`}
+                  }`}
               >
                 {/* Whatsapp-style tail injection */}
                 <div className={`absolute top-0 w-3 h-3 ${entry.role === 'assistant' ? '-left-2 bg-[#202c33] [clip-path:polygon(100%_0,0_0,100%_100%)]' : '-right-2 bg-[#005c4b] [clip-path:polygon(0_0,100%_0,0_100%)]'}`}></div>
@@ -246,10 +245,10 @@ export function CampusAssistantWidget() {
             ))}
             {loading ? (
               <article className="relative mr-auto flex gap-2 rounded-2xl rounded-tl-none bg-[#202c33] px-4 py-3 text-sm text-slate-400 shadow-sm">
-                 <div className="absolute top-0 -left-2 w-3 h-3 bg-[#202c33] [clip-path:polygon(100%_0,0_0,100%_100%)]"></div>
-                 <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500/80"></span>
-                 <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500/80 [animation-delay:-0.15s]"></span>
-                 <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500/80 [animation-delay:-0.3s]"></span>
+                <div className="absolute top-0 -left-2 w-3 h-3 bg-[#202c33] [clip-path:polygon(100%_0,0_0,100%_100%)]"></div>
+                <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500/80"></span>
+                <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500/80 [animation-delay:-0.15s]"></span>
+                <span className="h-2 w-2 animate-bounce rounded-full bg-cyan-500/80 [animation-delay:-0.3s]"></span>
               </article>
             ) : null}
           </div>
@@ -266,11 +265,10 @@ export function CampusAssistantWidget() {
                       setActiveSuggestion(suggestion);
                       void sendMessage(suggestion);
                     }}
-                    className={`rounded-full border px-3 py-1.5 text-[0.8rem] tracking-wide transition-all disabled:opacity-50 ${
-                      activeSuggestion === suggestion
+                    className={`rounded-full border px-3 py-1.5 text-[0.8rem] tracking-wide transition-all disabled:opacity-50 ${activeSuggestion === suggestion
                         ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300'
                         : 'border-cyan-500/30 bg-slate-800/80 text-cyan-300 hover:border-cyan-400 md:hover:bg-cyan-500/10'
-                    }`}
+                      }`}
                   >
                     {suggestion}
                   </button>
@@ -309,7 +307,7 @@ export function CampusAssistantWidget() {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-6 left-6 z-[1199] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-600 to-emerald-500 text-white shadow-[0_10px_35px_rgba(16,185,129,0.35)] transition-all hover:scale-110 hover:shadow-[0_15px_40px_rgba(34,211,238,0.5)] active:scale-95"
+        className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-[calc(1.5rem+env(safe-area-inset-left))] z-[1199] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-600 to-emerald-500 text-white shadow-[0_10px_35px_rgba(16,185,129,0.35)] transition-all hover:scale-110 hover:shadow-[0_15px_40px_rgba(34,211,238,0.5)] active:scale-95"
         aria-label="Abrir asistente universitario"
       >
         <MessageCircle size={28} />

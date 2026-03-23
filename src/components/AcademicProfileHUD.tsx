@@ -223,105 +223,105 @@ export const AcademicProfileHUD: React.FC<AcademicProfileHUDProps> = ({
   const skillModal =
     showSkillModal && selectedSkill && typeof document !== 'undefined'
       ? createPortal(
-          <div
-            className="fixed inset-0 z-[9999] flex h-[100dvh] w-screen items-center justify-center bg-[#03060D]/80 p-4 backdrop-blur-md transition-opacity sm:p-6"
-            onClick={() => setShowSkillModal(false)}
-            role="presentation"
+        <div
+          className="fixed inset-0 z-[9999] flex h-[100dvh] w-screen items-center justify-center bg-[#03060D]/80 p-4 backdrop-blur-md transition-opacity sm:p-6"
+          onClick={() => setShowSkillModal(false)}
+          role="presentation"
+        >
+          <article
+            className="relative m-auto flex w-full max-w-3xl max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-[32px] border border-slate-700/50 bg-[#0B1121] shadow-[0_20px_100px_rgba(0,0,0,0.8)] sm:max-h-[calc(100dvh-3rem)]"
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="skill-modal-title"
           >
-            <article
-              className="relative m-auto flex w-full max-w-3xl max-h-[calc(100dvh-2rem)] flex-col overflow-hidden rounded-[32px] border border-slate-700/50 bg-[#0B1121] shadow-[0_20px_100px_rgba(0,0,0,0.8)] sm:max-h-[calc(100dvh-3rem)]"
-              onClick={(event) => event.stopPropagation()}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="skill-modal-title"
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.1),transparent_70%)]" />
+
+            <div
+              className={`relative flex flex-1 flex-col gap-8 overflow-y-auto ${scrollbarClasses}`}
+              style={{ padding: '2.5rem 3rem' }}
             >
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.1),transparent_70%)]" />
-
-              <div
-                className={`relative flex flex-1 flex-col gap-8 overflow-y-auto ${scrollbarClasses}`}
-                style={{ padding: '2.5rem 3rem' }}
-              >
-                <div className="flex items-start justify-between gap-6">
-                  <div className="flex items-center gap-5">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-600/50 bg-slate-800/50 text-emerald-400 shadow-inner">
-                      <BookOpen size={28} />
-                    </div>
-                    <div className="flex flex-col">
-                      <p className="text-xs font-bold tracking-[0.2em] text-emerald-500/90">
-                        DETALLE DE HABILIDAD
-                      </p>
-                      <h4
-                        id="skill-modal-title"
-                        className="mt-1.5 text-2xl font-black uppercase leading-tight text-white sm:text-3xl"
-                      >
-                        {selectedSkill.name}
-                      </h4>
-                    </div>
+              <div className="flex items-start justify-between gap-6">
+                <div className="flex items-center gap-5">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-slate-600/50 bg-slate-800/50 text-emerald-400 shadow-inner">
+                    <BookOpen size={28} />
                   </div>
-                  <button
-                    type="button"
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800/80 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
-                    onClick={() => setShowSkillModal(false)}
-                    aria-label="Cerrar detalle de habilidad"
-                  >
-                    <X size={20} />
-                  </button>
+                  <div className="flex flex-col">
+                    <p className="text-xs font-bold tracking-[0.2em] text-emerald-500/90">
+                      DETALLE DE HABILIDAD
+                    </p>
+                    <h4
+                      id="skill-modal-title"
+                      className="mt-1.5 text-2xl font-black uppercase leading-tight text-white sm:text-3xl"
+                    >
+                      {selectedSkill.name}
+                    </h4>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-800/80 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
+                  onClick={() => setShowSkillModal(false)}
+                  aria-label="Cerrar detalle de habilidad"
+                >
+                  <X size={20} />
+                </button>
+              </div>
 
-                <div className="flex flex-wrap items-center gap-4">
-                  {selectedSkill.grade == null || Number.isNaN(selectedSkill.grade) ? (
-                    <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-bold tracking-wide text-amber-400">
-                      <Hourglass size={16} />
-                      PENDIENTE DE CALIFICACIÓN
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-bold tracking-wide text-cyan-400">
-                      <Trophy size={16} />
-                      CALIFICACIÓN: {formatGrade(selectedSkill.grade)}
-                    </span>
-                  )}
-                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800/80 px-4 py-2 text-sm font-medium tracking-wide text-slate-300">
-                    <Tag size={16} />
-                    Clave: {selectedSkill.id}
+              <div className="flex flex-wrap items-center gap-4">
+                {selectedSkill.grade == null || Number.isNaN(selectedSkill.grade) ? (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-bold tracking-wide text-amber-400">
+                    <Hourglass size={16} />
+                    PENDIENTE DE CALIFICACIÓN
                   </span>
-                </div>
+                ) : (
+                  <span className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm font-bold tracking-wide text-cyan-400">
+                    <Trophy size={16} />
+                    CALIFICACIÓN: {formatGrade(selectedSkill.grade)}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800/80 px-4 py-2 text-sm font-medium tracking-wide text-slate-300">
+                  <Tag size={16} />
+                  Clave: {selectedSkill.id}
+                </span>
+              </div>
 
-                <div className="rounded-2xl bg-slate-800/30 p-6 ring-1 ring-white/5">
-                  <p className="text-base leading-relaxed text-slate-300">
-                    {selectedSkill.description?.trim() || 'Habilidad fundamental en tu desarrollo académico. Consulta la oferta para conocer el desglose de competencias asociadas a esta materia y cómo impacta en tu perfil.'}
-                  </p>
-                </div>
+              <div className="rounded-2xl bg-slate-800/30 p-6 ring-1 ring-white/5">
+                <p className="text-base leading-relaxed text-slate-300">
+                  {selectedSkill.description?.trim() || 'Habilidad fundamental en tu desarrollo académico. Consulta la oferta para conocer el desglose de competencias asociadas a esta materia y cómo impacta en tu perfil.'}
+                </p>
+              </div>
 
-                <div className="flex flex-col gap-4">
-                  <p className="text-xs font-bold tracking-[0.2em] text-slate-500">
-                    CONEXIONES DE HABILIDAD
-                  </p>
-                  <div className="flex items-center gap-5 rounded-2xl bg-slate-900/50 p-5 ring-1 ring-white/5">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700/50 bg-slate-800 text-slate-400">
-                      <Lock size={20} />
-                    </div>
-                    <div>
-                      <p className="text-sm"><span className="font-semibold text-slate-200">Requisito para:</span> Habilidades de Niveles Superiores</p>
-                      <p className="mt-1 text-sm text-slate-500">Forma parte del tronco común del área de estudio.</p>
-                    </div>
+              <div className="flex flex-col gap-4">
+                <p className="text-xs font-bold tracking-[0.2em] text-slate-500">
+                  CONEXIONES DE HABILIDAD
+                </p>
+                <div className="flex items-center gap-5 rounded-2xl bg-slate-900/50 p-5 ring-1 ring-white/5">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-slate-700/50 bg-slate-800 text-slate-400">
+                    <Lock size={20} />
+                  </div>
+                  <div>
+                    <p className="text-sm"><span className="font-semibold text-slate-200">Requisito para:</span> Habilidades de Niveles Superiores</p>
+                    <p className="mt-1 text-sm text-slate-500">Forma parte del tronco común del área de estudio.</p>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <button
-                type="button"
-                className="group relative flex w-full shrink-0 items-center justify-center bg-cyan-500 px-6 py-5 transition-all hover:bg-cyan-400 hover:shadow-[0_-10px_30px_rgba(34,211,238,0.2)]"
-                onClick={handleOpenAcademicOffer}
-              >
-                <span className="relative z-10 flex items-center gap-3 text-[15px] font-bold tracking-wide text-cyan-950">
-                  VER OFERTA ACADÉMICA COMPLETA
-                  <ExternalLink size={18} className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
-                </span>
-              </button>
-            </article>
-          </div>,
-          document.body,
-        )
+            <button
+              type="button"
+              className="group relative flex w-full shrink-0 items-center justify-center bg-cyan-500 px-6 py-5 transition-all hover:bg-cyan-400 hover:shadow-[0_-10px_30px_rgba(34,211,238,0.2)]"
+              onClick={handleOpenAcademicOffer}
+            >
+              <span className="relative z-10 flex items-center gap-3 text-[15px] font-bold tracking-wide text-cyan-950">
+                VER OFERTA ACADÉMICA COMPLETA
+                <ExternalLink size={18} className="transition-transform group-hover:translate-x-1 group-hover:-translate-y-1" />
+              </span>
+            </button>
+          </article>
+        </div>,
+        document.body,
+      )
       : null;
 
   return (
@@ -356,7 +356,7 @@ export const AcademicProfileHUD: React.FC<AcademicProfileHUDProps> = ({
                 <div className="pointer-events-none absolute inset-0 rounded-full bg-cyan-300/10 blur-md" />
                 <GraduationCap size={36} className="relative z-10" />
               </div>
-              
+
               <div className="mt-8 text-7xl font-black leading-none text-cyan-400 sm:text-8xl">
                 {(progress ?? 0).toFixed(1)}%
               </div>
@@ -414,7 +414,7 @@ export const AcademicProfileHUD: React.FC<AcademicProfileHUDProps> = ({
                   style={{ width: `${progress ?? 0}%` }}
                 />
               </div>
-              
+
               <div className="mt-4 text-xs font-medium text-slate-400">
                 {hasGlobalCredits ? (
                   <p>
@@ -485,7 +485,7 @@ export const AcademicProfileHUD: React.FC<AcademicProfileHUDProps> = ({
                     <div className="pointer-events-none absolute inset-0 rounded-full bg-amber-300/10 blur-md" />
                     <Trophy size={34} className="relative z-10" />
                   </div>
-                  
+
                   <div className={`mt-8 text-7xl font-black leading-none ${rank.tierClass}`}>
                     {rank.tier}
                   </div>
@@ -536,7 +536,7 @@ export const AcademicProfileHUD: React.FC<AcademicProfileHUDProps> = ({
                   <div className="pointer-events-none absolute inset-0 rounded-full bg-emerald-300/10 blur-md" />
                   <BookMarked size={36} className="relative z-10" />
                 </div>
-                
+
                 <div className="mt-8 text-7xl font-black leading-none text-emerald-400">
                   {completedClasses.length}
                 </div>
@@ -544,7 +544,7 @@ export const AcademicProfileHUD: React.FC<AcademicProfileHUDProps> = ({
                   HABILIDADES DESBLOQUEADAS
                 </p>
               </div>
-              <div className={`mt-2 flex-1 grid max-h-[380px] grid-cols-1 gap-2.5 overflow-auto pr-1 sm:grid-cols-2 ${scrollbarClasses}`}>
+              <div className={`mt-2 flex-1 grid max-h-[50dvh] grid-cols-1 gap-2.5 overflow-auto pr-1 sm:max-h-[380px] sm:grid-cols-2 ${scrollbarClasses}`}>
                 {completedClasses.map((item) => (
                   <button
                     key={item.id}
@@ -593,7 +593,7 @@ export const AcademicProfileHUD: React.FC<AcademicProfileHUDProps> = ({
                   <div className="pointer-events-none absolute inset-0 rounded-full bg-cyan-300/10 blur-md" />
                   <Target size={36} className="relative z-10" />
                 </div>
-                
+
                 <div className="mt-8 text-7xl font-black leading-none text-cyan-400">
                   {pendingClasses.length}
                 </div>

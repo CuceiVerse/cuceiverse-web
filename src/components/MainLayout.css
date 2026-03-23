@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   background-color: var(--background);
-  background-image: 
+  background-image:
     radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.08), transparent 25%),
     radial-gradient(circle at 85% 30%, rgba(147, 51, 234, 0.08), transparent 25%);
 }
@@ -101,9 +101,17 @@
 }
 
 @keyframes pulse-status {
-  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-  70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+  }
+
+  70% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
 }
 
 .logout-btn {
@@ -297,7 +305,9 @@
     height: 60px;
   }
 
-  .nav-brand h2, .user-badge, .logout-btn span {
+  .nav-brand h2,
+  .user-badge,
+  .logout-btn span {
     display: none;
   }
 
@@ -315,6 +325,7 @@
     -webkit-backdrop-filter: blur(16px);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     padding: 0.5rem 0.25rem;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
     justify-content: space-around;
     gap: 0;
     z-index: 100;
@@ -360,13 +371,15 @@
   }
 
   .layout-content {
-    padding-bottom: 70px; /* Space for fixed bottom nav */
+    padding-bottom: calc(70px + env(safe-area-inset-bottom));
+    /* Space for fixed bottom nav */
   }
 }
 
 @media (max-width: 480px) {
   .nav-link span {
-    display: none; /* Only icons on very small screens */
+    display: none;
+    /* Only icons on very small screens */
   }
 
   .nav-link {
@@ -374,4 +387,3 @@
     flex: 1;
   }
 }
-
