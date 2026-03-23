@@ -11,7 +11,7 @@ import { loadRuntimeSeed } from '../lib/runtimeSeed';
 import { useAvatarWalk } from '../hooks/useAvatarWalk';
 import { getMyProfile } from '../../../features/auth/api/auth';
 import { ModularMapCanvas } from './ModularMapCanvas';
-import type { PuntoInteres } from '../types';
+import { poiTypeLabels, type PoiType, type PuntoInteres } from '../types';
 import type {
   BuildingBlock,
   GridCell,
@@ -29,9 +29,60 @@ type MapWaypoint = {
   label: string;
   cell: GridCell;
   kind: 'poi-prop' | 'building' | 'poi-db' | 'avatar';
+  buildingType?: ModularBuilding['type'];
+  poiType?: PoiType;
 };
 
 const AVATAR_ORIGIN_ID = 'avatar::current';
+
+type WaypointFilter =
+  | 'all'
+  | 'kind:building'
+  | 'kind:poi-db'
+  | 'kind:poi-prop'
+  | `buildingType:${ModularBuilding['type']}`
+  | `poiType:${PoiType}`;
+
+const buildingTypeLabels: Record<ModularBuilding['type'], string> = {
+  academic: 'Académico',
+  administrative: 'Administrativo',
+  services: 'Servicios',
+  sports: 'Deportivo',
+  research: 'Investigación',
+  mixed: 'Mixto',
+};
+
+function applyWaypointFilter(waypoint: MapWaypoint, filter: WaypointFilter): boolean {
+  if (filter === 'all') return true;
+
+  if (filter === 'kind:building') return waypoint.kind === 'building';
+  if (filter === 'kind:poi-db') return waypoint.kind === 'poi-db';
+  if (filter === 'kind:poi-prop') return waypoint.kind === 'poi-prop';
+
+  if (filter.startsWith('buildingType:')) {
+    const type = filter.replace('buildingType:', '') as ModularBuilding['type'];
+    return waypoint.kind === 'building' && waypoint.buildingType === type;
+  }
+
+  if (filter.startsWith('poiType:')) {
+    const type = filter.replace('poiType:', '') as PoiType;
+    return waypoint.kind === 'poi-db' && waypoint.poiType === type;
+  }
+
+  return true;
+}
+
+function ensureWaypointIncluded(
+  candidates: MapWaypoint[],
+  selectedId: string,
+  fallback: MapWaypoint[],
+): MapWaypoint[] {
+  if (!selectedId) return candidates;
+  if (selectedId === AVATAR_ORIGIN_ID) return candidates;
+  if (candidates.some((w) => w.id === selectedId)) return candidates;
+  const selected = fallback.find((w) => w.id === selectedId);
+  return selected ? [selected, ...candidates] : candidates;
+}
 
 type AssistantRouteEventDetail = {
   type?: 'highlight-route';
@@ -306,6 +357,7 @@ export function ModularReadOnlyMap() {
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [originId, setOriginId] = useState('');
   const [destinationId, setDestinationId] = useState('');
+  const [waypointFilter, setWaypointFilter] = useState<WaypointFilter>('all');
   /** Ruta visual (puede incluir puntos fraccionales para centro de POI). */
   const [routePath, setRoutePath] = useState<Array<{ x: number; y: number }>>([]);
   const [routeTileCount, setRouteTileCount] = useState(0);
@@ -414,6 +466,7 @@ export function ModularReadOnlyMap() {
         label: `🏛 ${building.name}`,
         cell: anchor,
         kind: 'building',
+        buildingType: normalizeBuildingType(building.type),
       });
     }
 
@@ -425,11 +478,20 @@ export function ModularReadOnlyMap() {
         label: `📍 ${poi.nombre}`,
         cell: { x: Math.round(poi.coordenadaXGrid), y: Math.round(poi.coordenadaYGrid) },
         kind: 'poi-db',
+        poiType: poi.tipo,
       });
     }
 
     return result;
   }, [layout.props, layout.buildings, dbPois]);
+
+  const filteredWaypoints = useMemo(() => {
+    const filtered = waypoints.filter((wp) => applyWaypointFilter(wp, waypointFilter));
+    return {
+      forOrigin: ensureWaypointIncluded(filtered, originId, waypoints),
+      forDestination: ensureWaypointIncluded(filtered, destinationId, waypoints),
+    };
+  }, [waypoints, waypointFilter, originId, destinationId]);
 
   // Selección automática de primeros dos waypoints al cargar
   useEffect(() => {
@@ -784,7 +846,7 @@ export function ModularReadOnlyMap() {
               </p>
             )}
 
-            <div className="grid grid-cols-1 gap-4 items-end md:grid-cols-[1fr_1fr_auto]">
+            <div className="grid grid-cols-1 gap-4 items-end md:grid-cols-[1fr_1fr_1fr_auto]">
               <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
                 Origen
                 <div className="relative">
@@ -800,7 +862,7 @@ export function ModularReadOnlyMap() {
                     ) : (
                       <>
                         <option value={AVATAR_ORIGIN_ID}>Mi ubicación actual</option>
-                        {waypoints.map((wp) => (
+                        {filteredWaypoints.forOrigin.map((wp) => (
                           <option key={wp.id} value={wp.id}>
                             {wp.label}
                           </option>
@@ -823,12 +885,47 @@ export function ModularReadOnlyMap() {
                     {waypoints.length === 0 ? (
                       <option value="">Sin puntos en el mapa</option>
                     ) : (
-                      waypoints.map((wp) => (
+                      filteredWaypoints.forDestination.map((wp) => (
                         <option key={wp.id} value={wp.id}>
                           {wp.label}
                         </option>
                       ))
                     )}
+                  </select>
+                </div>
+              </label>
+              <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
+                Filtro
+                <div className="relative">
+                  <select
+                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-slate-500/60 hover:bg-[#0e1a3a] focus:border-slate-300 focus:ring-2 focus:ring-slate-500/20"
+                    style={{ paddingLeft: '1rem' }}
+                    value={waypointFilter}
+                    onChange={(event) => {
+                      setWaypointFilter(event.target.value as WaypointFilter);
+                      setRoutePath([]);
+                      setRouteTileCount(0);
+                      setRouteError(null);
+                    }}
+                  >
+                    <option value="all">Todo</option>
+                    <option value="kind:building">Solo edificios</option>
+                    <option value="kind:poi-db">Solo servicios (POIs)</option>
+                    <option value="kind:poi-prop">Solo POIs del mapa</option>
+                    <optgroup label="Edificios por tipo">
+                      {Object.entries(buildingTypeLabels).map(([type, label]) => (
+                        <option key={type} value={`buildingType:${type}` as const}>
+                          {label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Servicios (POIs) por tipo">
+                      {Object.entries(poiTypeLabels).map(([type, label]) => (
+                        <option key={type} value={`poiType:${type}` as const}>
+                          {label}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
               </label>
