@@ -29,6 +29,8 @@ type MapWaypoint = {
   cell: GridCell;
   kind: 'poi-prop' | 'building' | 'access';
 };
+
+type WalkNetwork = 'pasillos' | 'mixta';
 type VisibilityFilters = {
   buildings: boolean;
   services: boolean;
@@ -383,11 +385,14 @@ export function ModularReadOnlyMap() {
   });
   /** Ruta visual (puede incluir puntos fraccionales para centro de POI). */
   const [routePath, setRoutePath] = useState<Array<{ x: number; y: number }>>([]);
+  /** Ruta visual cuando el usuario mueve el avatar manualmente (línea azul). */
+  const [manualRoutePath, setManualRoutePath] = useState<Array<{ x: number; y: number }>>([]);
   const [routeTileCount, setRouteTileCount] = useState(0);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeNetwork, setRouteNetwork] = useState<'pasillos' | 'mixta'>('pasillos');
   const [navOpen, setNavOpen] = useState(true);
+  const [activeTrip, setActiveTrip] = useState<'navigation' | 'manual' | null>(null);
 
   const statusLabel = useMemo(() => {
     const normalized = status.toLowerCase();
@@ -499,12 +504,35 @@ export function ModularReadOnlyMap() {
     return result;
   }, [layout.props, layout.buildings, visibility.buildings, visibility.services, visibility.infrastructure]);
 
+  const validWaypointIds = useMemo(() => {
+    // Solo incluir ubicaciones configuradas en el área actualmente activa del mapa.
+    const areaKeys = new Set(Object.keys(viewerState.areaCellsByKey));
+    return new Set(waypoints.filter((wp) => areaKeys.has(cellKey(wp.cell))).map((wp) => wp.id));
+  }, [viewerState.areaCellsByKey, waypoints]);
+
+  const configuredWaypoints = useMemo(() => {
+    return waypoints.filter((wp) => validWaypointIds.has(wp.id));
+  }, [validWaypointIds, waypoints]);
+
+  useEffect(() => {
+    if (!originId && !destinationId) {
+      return;
+    }
+    const ids = new Set(configuredWaypoints.map((wp) => wp.id));
+    if (originId && !ids.has(originId)) {
+      setOriginId('');
+    }
+    if (destinationId && !ids.has(destinationId)) {
+      setDestinationId('');
+    }
+  }, [configuredWaypoints, originId, destinationId]);
+
   const filteredWaypoints = useMemo(() => {
     return {
-      forOrigin: ensureWaypointIncluded(waypoints, originId, waypoints),
-      forDestination: ensureWaypointIncluded(waypoints, destinationId, waypoints),
+      forOrigin: ensureWaypointIncluded(configuredWaypoints, originId, configuredWaypoints),
+      forDestination: ensureWaypointIncluded(configuredWaypoints, destinationId, configuredWaypoints),
     };
-  }, [waypoints, originId, destinationId]);
+  }, [configuredWaypoints, originId, destinationId]);
 
   const canvasViewerState = useMemo(() => {
     const nextBuildingsById = visibility.buildings ? viewerState.buildingsById : {};
@@ -565,10 +593,39 @@ export function ModularReadOnlyMap() {
   const {
     position: avatarGridPos,
     positionRef: avatarPositionRef,
-    walk: walkAvatar,
+    walkPath: walkAvatarPath,
+    cancel: cancelAvatarWalk,
     habboDirection,
     isMoving: avatarIsMoving,
   } = useAvatarWalk(pathCellsSet, viewMode);
+
+  function computeWalkPathBetweenCells(
+    originCell: GridCell,
+    destinationCell: GridCell,
+  ): { path: GridCell[]; network: WalkNetwork } | null {
+    // 1) Intento principal: solo pasillos
+    const snappedOrigin = snapToPathTile(originCell, pathCellsSet);
+    const snappedDest = snapToPathTile(destinationCell, pathCellsSet);
+    const pathOnly =
+      snappedOrigin && snappedDest
+        ? gridAStarPath(snappedOrigin, snappedDest, pathCellsSet)
+        : [];
+    if (pathOnly.length >= 2) {
+      return { path: pathOnly, network: 'pasillos' };
+    }
+
+    // 2) Fallback: pasillos + asfalto
+    const snappedOriginMixed = snapToPathTile(originCell, traversableWithAsphaltSet);
+    const snappedDestMixed = snapToPathTile(destinationCell, traversableWithAsphaltSet);
+    if (!snappedOriginMixed || !snappedDestMixed) {
+      return null;
+    }
+    const mixed = gridAStarPath(snappedOriginMixed, snappedDestMixed, traversableWithAsphaltSet);
+    if (mixed.length < 2) {
+      return null;
+    }
+    return { path: mixed, network: 'mixta' };
+  }
 
   const avatarFigure = useMemo(
     () => extractFigureFromAvatarValue(userAvatarUrl),
@@ -654,6 +711,7 @@ export function ModularReadOnlyMap() {
   function computeRouteForWaypoints(origin: MapWaypoint, dest: MapWaypoint) {
     setRouteError(null);
     setRoutePath([]);
+    setManualRoutePath([]);
     setRouteTileCount(0);
     setRouteNetwork('pasillos');
 
@@ -664,51 +722,14 @@ export function ModularReadOnlyMap() {
     const resolvedOrigin = { ...origin, cell: resolvedOriginCell };
     const resolvedDest = { ...dest, cell: resolvedDestCell };
 
-    // 1) Intento principal: solo pasillos
-    const snappedOriginPath = snapToPathTile(resolvedOrigin.cell, pathCellsSet);
-    const snappedDestPath = snapToPathTile(resolvedDest.cell, pathCellsSet);
-    const pathOnly =
-      snappedOriginPath && snappedDestPath
-        ? gridAStarPath(snappedOriginPath, snappedDestPath, pathCellsSet)
-        : [];
-
-    if (pathOnly.length > 0) {
-      const centeredPath = pathOnly.map(centerOfCell);
-      const withPoiCenters = dedupePolyline([
-        ...(isPoiWaypoint(resolvedOrigin.kind) ? [centerOfCell(resolvedOrigin.cell)] : []),
-        ...centeredPath,
-        ...(isPoiWaypoint(resolvedDest.kind) ? [centerOfCell(resolvedDest.cell)] : []),
-      ]);
-      setRoutePath(withPoiCenters);
-      setRouteTileCount(pathOnly.length);
-      setRouteNetwork('pasillos');
+    const resolved = computeWalkPathBetweenCells(resolvedOrigin.cell, resolvedDest.cell);
+    if (!resolved) {
       setRouteLoading(false);
+      setRouteError('No se encontró ruta caminable (pasillos/asfalto). Verifica conectividad.');
       return;
     }
 
-    // 2) Fallback: pasillos + asfalto
-    const snappedOriginMixed = snapToPathTile(resolvedOrigin.cell, traversableWithAsphaltSet);
-    const snappedDestMixed = snapToPathTile(resolvedDest.cell, traversableWithAsphaltSet);
-
-    if (!snappedOriginMixed) {
-      setRouteError(`No hay pasillos ni asfalto cerca del origen "${origin.label}".`);
-      setRouteLoading(false);
-      return;
-    }
-    if (!snappedDestMixed) {
-      setRouteError(`No hay pasillos ni asfalto cerca del destino "${dest.label}".`);
-      setRouteLoading(false);
-      return;
-    }
-
-    const path = gridAStarPath(snappedOriginMixed, snappedDestMixed, traversableWithAsphaltSet);
-    setRouteLoading(false);
-
-    if (path.length === 0) {
-      setRouteError('No se encontró ruta ni por pasillos ni por asfalto. Verifica conectividad.');
-      return;
-    }
-
+    const { path, network } = resolved;
     const centeredPath = path.map(centerOfCell);
     const withPoiCenters = dedupePolyline([
       ...(isPoiWaypoint(resolvedOrigin.kind) ? [centerOfCell(resolvedOrigin.cell)] : []),
@@ -716,9 +737,43 @@ export function ModularReadOnlyMap() {
       ...(isPoiWaypoint(resolvedDest.kind) ? [centerOfCell(resolvedDest.cell)] : []),
     ]);
 
-    setRouteNetwork('mixta');
+    setRouteNetwork(network);
     setRoutePath(withPoiCenters);
     setRouteTileCount(path.length);
+    setRouteLoading(false);
+
+    // Hacer que el avatar siga automáticamente el trazado.
+    setActiveTrip('navigation');
+    walkAvatarPath(path);
+  }
+
+  function handleAvatarCellClick(targetCell: GridCell) {
+    // Movimiento manual: trazar la ruta en azul y hacer que el avatar la siga.
+    setRouteError(null);
+    setManualRoutePath([]);
+
+    const currentCell: GridCell = {
+      x: Math.round((avatarPositionRef.current?.x ?? avatarGridPos.x) - 0.5),
+      y: Math.round((avatarPositionRef.current?.y ?? avatarGridPos.y) - 0.5),
+    };
+
+    const resolved = computeWalkPathBetweenCells(currentCell, targetCell);
+    if (!resolved) {
+      return;
+    }
+
+    const centered = resolved.path.map(centerOfCell);
+    setManualRoutePath(dedupePolyline(centered));
+    setActiveTrip('manual');
+    walkAvatarPath(resolved.path);
+  }
+
+  function handleCancelTrip() {
+    cancelAvatarWalk();
+    setActiveTrip(null);
+    if (activeTrip === 'manual') {
+      setManualRoutePath([]);
+    }
   }
 
   function handleComputeRoute() {
@@ -823,6 +878,17 @@ export function ModularReadOnlyMap() {
               <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
               {statusLabel}
             </span>
+
+            {avatarIsMoving ? (
+              <button
+                type="button"
+                className="h-9 rounded-full border border-rose-500/40 bg-rose-950/30 px-4 text-[11px] font-extrabold uppercase tracking-wider text-rose-200 transition hover:bg-rose-950/50"
+                onClick={handleCancelTrip}
+                title="Detener trayecto"
+              >
+                Cancelar
+              </button>
+            ) : null}
 
             <div className="inline-flex items-center rounded-full border border-slate-600/50 bg-slate-900/80 p-1 shadow-inner">
               <button
@@ -1021,7 +1087,8 @@ export function ModularReadOnlyMap() {
             onPlaceProp={() => undefined}
             viewMode={viewMode}
             routePolyline={routePath}
-            onCellClick={walkAvatar}
+            manualRoutePolyline={manualRoutePath}
+            onCellClick={handleAvatarCellClick}
             avatarPosition={avatarGridPos}
             avatarPositionRef={avatarPositionRef}
             avatarFigure={avatarFigure ?? undefined}

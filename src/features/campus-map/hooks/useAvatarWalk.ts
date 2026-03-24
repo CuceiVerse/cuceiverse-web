@@ -87,6 +87,10 @@ type AvatarWalkResult = {
   walkFrame: number;
   /** Trigger a walk to the target cell */
   walk: (target: GridCell) => void;
+  /** Trigger a walk following a precomputed path (list of grid cells). */
+  walkPath: (path: GridCell[]) => void;
+  /** Cancel the current movement, keeping the avatar where it is. */
+  cancel: () => void;
   /** Path being followed */
   pathCells: GridCell[];
 };
@@ -139,24 +143,11 @@ export function useAvatarWalk(
     lastTimestampRef.current = 0;
     setIsMoving(false);
     setWalkFrame(0);
+    pathRef.current = [];
   }, []);
 
-  const walk = useCallback(
-    (target: GridCell) => {
-      // Convert fractional (centered) coords back into integer cell coords.
-      // Our convention is: cell centers are (cell.x + 0.5, cell.y + 0.5).
-      // Using Math.round(position.x) would incorrectly jump at .5 boundaries.
-      const currentCell: GridCell = {
-        x: Math.round(positionRef.current.x - 0.5),
-        y: Math.round(positionRef.current.y - 0.5),
-      };
-
-      const snappedStart = snapToPathTile(currentCell, pathCellsSet);
-      const snappedEnd = snapToPathTile(target, pathCellsSet);
-
-      if (!snappedStart || !snappedEnd) return;
-
-      const path = gridAStarPath(snappedStart, snappedEnd, pathCellsSet);
+  const startWalkingPath = useCallback(
+    (path: GridCell[]) => {
       if (path.length < 2) return;
 
       stopAnimation();
@@ -164,6 +155,7 @@ export function useAvatarWalk(
       pathRef.current = path;
       segmentIndexRef.current = 0;
       progressRef.current = 0;
+
       const firstSegment = {
         dx: path[1].x - path[0].x,
         dy: path[1].y - path[0].y,
@@ -228,8 +220,45 @@ export function useAvatarWalk(
 
       frameRef.current = requestAnimationFrame(tick);
     },
-    [idleDirection, pathCellsSet, stopAnimation, viewMode],
+    [idleDirection, stopAnimation, viewMode],
   );
+
+  const walk = useCallback(
+    (target: GridCell) => {
+      // Convert fractional (centered) coords back into integer cell coords.
+      // Our convention is: cell centers are (cell.x + 0.5, cell.y + 0.5).
+      // Using Math.round(position.x) would incorrectly jump at .5 boundaries.
+      const currentCell: GridCell = {
+        x: Math.round(positionRef.current.x - 0.5),
+        y: Math.round(positionRef.current.y - 0.5),
+      };
+
+      const snappedStart = snapToPathTile(currentCell, pathCellsSet);
+      const snappedEnd = snapToPathTile(target, pathCellsSet);
+
+      if (!snappedStart || !snappedEnd) return;
+
+      const path = gridAStarPath(snappedStart, snappedEnd, pathCellsSet);
+      if (path.length < 2) return;
+
+      startWalkingPath(path);
+    },
+    [pathCellsSet, startWalkingPath],
+  );
+
+  const walkPath = useCallback(
+    (path: GridCell[]) => {
+      startWalkingPath(path);
+    },
+    [startWalkingPath],
+  );
+
+  const cancel = useCallback(() => {
+    stopAnimation();
+    // "Congelar" el estado en la posición actual (positionRef) para que
+    // la UI y la persistencia reflejen el punto donde se canceló.
+    setPosition({ ...positionRef.current });
+  }, [stopAnimation]);
 
   useEffect(() => {
     return () => {
@@ -245,6 +274,8 @@ export function useAvatarWalk(
     habboDirection,
     walkFrame,
     walk,
+    walkPath,
+    cancel,
     pathCells: pathRef.current,
   };
 }

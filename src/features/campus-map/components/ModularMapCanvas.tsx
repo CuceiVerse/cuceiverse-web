@@ -66,6 +66,8 @@ type Props = {
   viewMode?: 'isometric' | '2d';
   /** PolilÃ­nea de la ruta recomendada principal (coordenadas de grid). */
   routePolyline?: Array<{ x: number; y: number }>;
+  /** PolilÃ­nea de ruta del avatar en movimiento manual (coordenadas de grid). */
+  manualRoutePolyline?: Array<{ x: number; y: number }>;
   /** PolilÃ­neas de rutas alternativas (coordenadas de grid). */
   altPolylines?: Array<Array<{ x: number; y: number }>>;
   /** Callback when the user left-clicks a cell in pan/viewer mode. */
@@ -441,6 +443,7 @@ export function ModularMapCanvas({
   onPlaceProp,
   viewMode = 'isometric',
   routePolyline = [],
+  manualRoutePolyline = [],
   altPolylines = [],
   onCellClick,
   avatarPosition,
@@ -1774,6 +1777,26 @@ export function ModularMapCanvas({
       graphics.circle(lastPt.x, lastPt.y, 6);
       graphics.stroke();
     }
+
+    if (manualRoutePolyline.length >= 2) {
+      const firstPt = gridToWorld(manualRoutePolyline[0], editorState.grid, viewMode);
+
+      graphics.setStrokeStyle({ color: 0x60a5fa, width: 9, alpha: 0.22 });
+      graphics.moveTo(firstPt.x, firstPt.y);
+      for (let i = 1; i < manualRoutePolyline.length; i += 1) {
+        const pt = gridToWorld(manualRoutePolyline[i], editorState.grid, viewMode);
+        graphics.lineTo(pt.x, pt.y);
+      }
+      graphics.stroke();
+
+      graphics.setStrokeStyle({ color: 0x3b82f6, width: 3.5, alpha: 0.97 });
+      graphics.moveTo(firstPt.x, firstPt.y);
+      for (let i = 1; i < manualRoutePolyline.length; i += 1) {
+        const pt = gridToWorld(manualRoutePolyline[i], editorState.grid, viewMode);
+        graphics.lineTo(pt.x, pt.y);
+      }
+      graphics.stroke();
+    }
   }, [
     altPolylines,
     asphaltCells,
@@ -1786,6 +1809,7 @@ export function ModularMapCanvas({
     editorState.grid,
     editorState.pathsByCell,
     hoverCell,
+    manualRoutePolyline,
     props,
     routePolyline,
     selectedBuildingId,
