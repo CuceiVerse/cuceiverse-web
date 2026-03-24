@@ -14,17 +14,28 @@ export function extractFigureFromAvatarValue(value: string | null): string | nul
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  if (trimmed.includes('.') && trimmed.includes('-')) {
+  // 1) Si es URL (absoluta o relativa), extraer ?figure= cuando exista.
+  try {
+    const parsedUrl = new URL(
+      trimmed,
+      typeof window !== 'undefined' ? window.location.origin : 'http://localhost',
+    );
+    const figure = parsedUrl.searchParams.get('figure');
+    if (figure?.trim()) {
+      return figure.trim();
+    }
+  } catch {
+    // No es URL parseable; seguir con heurística de figura.
+  }
+
+  // 2) Figura Habbo: "hd-... .ch-..." etc. (type-setId-colors...).
+  // Evita falsos positivos como "https://foo-bar.com/a.png".
+  const FIGURE_RE = /^(?:[a-z]{2}-\d+(?:-\d+){0,6})(?:\.[a-z]{2}-\d+(?:-\d+){0,6})*$/i;
+  if (FIGURE_RE.test(trimmed)) {
     return trimmed;
   }
 
-  try {
-    const parsedUrl = new URL(trimmed, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
-    const figure = parsedUrl.searchParams.get('figure');
-    return figure?.trim() || null;
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 export function resolveAvatarImage(

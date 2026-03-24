@@ -4,6 +4,7 @@ import {
   buildFigureString,
   type FigurePart,
 } from "../lib/figureString";
+import { extractFigureFromAvatarValue } from "../lib/avatarImage";
 import { useAuth } from "../context/useAuth";
 import { getMyProfile, updateMyAvatar } from "../features/auth/api/auth";
 import "./AvatarsView.css";
@@ -132,22 +133,6 @@ function parseFigureString(figure: string): FigurePart[] {
       return { type, setId, colors };
     })
     .filter((p) => p.type && Number.isFinite(p.setId) && p.setId > 0);
-}
-
-function extractFigureFromAvatarValue(value: string | null): string | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  if (trimmed.includes(".") && trimmed.includes("-")) return trimmed;
-
-  try {
-    const parsedUrl = new URL(trimmed, window.location.origin);
-    const figure = parsedUrl.searchParams.get("figure");
-    return figure?.trim() || null;
-  } catch {
-    return null;
-  }
 }
 
 export const AvatarsView: React.FC = () => {
