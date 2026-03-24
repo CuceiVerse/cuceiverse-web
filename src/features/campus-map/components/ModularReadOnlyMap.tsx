@@ -474,35 +474,21 @@ export function ModularReadOnlyMap() {
     // 2) Edificios creados en el editor (con nombre)
     if (visibility.buildings) {
       for (const building of layout.buildings) {
-        if (!building.name.trim()) continue;
+        const label = building.name.trim();
+        if (!label) continue;
         // Calcular celda centroide del primer bloque
         const anchor = building.blocks[0]?.anchor ?? { x: 0, y: 0 };
         result.push({
           id: `building::${building.id}`,
-          label: building.name,
+          label,
           cell: anchor,
           kind: 'building',
         });
       }
     }
 
-    // 3) Puntos de acceso (props access-*)
-    if (visibility.infrastructure) {
-      for (const prop of layout.props) {
-        const kind = normalizePropKind(String(prop.kind));
-        if (kind !== 'access-pedestrian' && kind !== 'access-vehicular') continue;
-        const label = kind === 'access-pedestrian' ? 'Acceso peatonal' : 'Acceso vehicular';
-        result.push({
-          id: `access::${prop.id}`,
-          label,
-          cell: prop.cell,
-          kind: 'access',
-        });
-      }
-    }
-
     return result;
-  }, [layout.props, layout.buildings, visibility.buildings, visibility.services, visibility.infrastructure]);
+  }, [layout.props, layout.buildings, visibility.buildings, visibility.services]);
 
   const validWaypointIds = useMemo(() => {
     // Solo incluir ubicaciones configuradas en el área actualmente activa del mapa.
