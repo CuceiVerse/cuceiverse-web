@@ -89,7 +89,7 @@ const TRAMITES_DATA: Tramite[] = [
   {
     id: '10', title: 'Acreditación de materias (CUCEI o Incorporadas)',
     description: 'Acreditación de materias para escuelas originarias de UDG o debidamente incorporadas.',
-    category: 'Revalidación', time: 'Revisa el Calendario de Actividades Escolares', cost: '$ 68.00 por materia', location: 'Plataforma SIATSE / Control Escolar',
+    category: 'Revalidación', time: 'Revisa el Calendario de Actividades Escolares', cost: '$ 68.00 por materia', location: 'Plataforma SIATSE / Control Escolar (Modulo A, Proulex)',
     requirements: [
       'Esperar a ser formalmente admitido y estar en calendario de actividades.',
       'Ingresar a SIATCE -> Trámites Varios -> "Acreditación y Revalidación" y seguir ruta.',
@@ -101,7 +101,7 @@ const TRAMITES_DATA: Tramite[] = [
   {
     id: '11', title: 'Revalidación de materias (Extranjero)',
     description: 'Revalidación de materias cursadas en universidades fuera del país.',
-    category: 'Revalidación', time: 'Revisa el Calendario de Actividades Escolares', cost: '$ 513.00 por materia', location: 'Plataforma SIATSE / Control Escolar',
+    category: 'Revalidación', time: 'Revisa el Calendario de Actividades Escolares', cost: '$ 513.00 por materia', location: 'Plataforma SIATSE / Control Escolar (Modulo A, Proulex)',
     requirements: [
       'Ingresar a SIATCE -> Trámites Varios -> "Acreditación y Revalidación".',
       'Entregar Original y 2 copias de la Solicitud SIATCE y del Oficio de Igualdad del Coordinador.',
@@ -113,7 +113,7 @@ const TRAMITES_DATA: Tramite[] = [
   {
     id: '12', title: 'Equivalencia de materias (Nacional)',
     description: 'Acreditar materias cursadas en otras escuelas y universidades mexicanas que no son de UDG.',
-    category: 'Revalidación', time: 'Revisa el Calendario de Actividades Escolares', cost: '$ 113.00 por materia', location: 'Plataforma SIATSE / Control Escolar',
+    category: 'Revalidación', time: 'Revisa el Calendario de Actividades Escolares', cost: '$ 113.00 por materia', location: 'Plataforma SIATSE / Control Escolar (Modulo A, Proulex)',
     requirements: [
       'Ingresar a SIATCE -> Trámites Varios -> "Acreditación y Revalidación".',
       'Entregar Original y 2 copias de la Solicitud SIATCE y Oficio del Coordinador.',
