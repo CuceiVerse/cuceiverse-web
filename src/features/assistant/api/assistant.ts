@@ -1,6 +1,11 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
 
-export type AssistantIntent = 'navigation' | 'academic' | 'platform' | 'general';
+export type AssistantIntent =
+  | 'navigation'
+  | 'academic'
+  | 'administrative'
+  | 'platform'
+  | 'general';
 
 export type AssistantMessage = {
   role: 'user' | 'assistant';
@@ -8,8 +13,12 @@ export type AssistantMessage = {
 };
 
 export type AssistantContext = {
+  lastOriginPoiId?: string;
+  lastOriginLabel?: string;
   lastDestinationPoiId?: string;
   lastDestinationLabel?: string;
+  pendingDestinationPoiId?: string;
+  pendingDestinationLabel?: string;
 };
 
 export type AssistantRouteAction = {

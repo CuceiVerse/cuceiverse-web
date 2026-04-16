@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { 
   ClipboardCheck, 
   Search, 
@@ -11,8 +12,7 @@ import {
   AlertTriangle,
   Banknote,
   Globe,
-  Building2,
-  Calendar
+  Building2
 } from 'lucide-react';
 import './TramitesView.css';
 
@@ -27,6 +27,8 @@ interface Tramite {
   requirements: string[];
   externalUrl?: string;
 }
+
+const TRAMITE_CATEGORIES = ['Todas', 'Constancias', 'Revalidación', 'Bajas', 'Académico', 'Titulación', 'Aclaraciones', 'Servicios'];
 
 const TRAMITES_DATA: Tramite[] = [
   // CONSTANCIAS Y CERTIFICADOS
@@ -282,11 +284,48 @@ const TRAMITES_DATA: Tramite[] = [
 ];
 
 export const TramitesView: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('Todas');
   const [selectedTramite, setSelectedTramite] = useState<Tramite | null>(null);
 
-  const categories = ['Todas', 'Constancias', 'Revalidación', 'Bajas', 'Académico', 'Titulación', 'Aclaraciones', 'Servicios'];
+  useEffect(() => {
+    const qParam = searchParams.get('q');
+    const tramiteId = searchParams.get('tramite');
+
+    if (qParam) {
+      const decoded = decodeURIComponent(qParam);
+      if (TRAMITE_CATEGORIES.includes(decoded)) {
+        setActiveCategory(decoded);
+        setSearchTerm('');
+      } else {
+        setActiveCategory('Todas');
+        setSearchTerm(decoded);
+      }
+    }
+
+    if (tramiteId) {
+      const found = TRAMITES_DATA.find((tramite) => tramite.id === tramiteId) ?? null;
+      setSelectedTramite((current) => (current?.id === found?.id ? current : found));
+      return;
+    }
+
+    setSelectedTramite((current) => (current ? null : current));
+  }, [searchParams]);
+
+  const openTramite = (tramite: Tramite) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('tramite', tramite.id);
+    setSearchParams(nextParams, { replace: true });
+    setSelectedTramite(tramite);
+  };
+
+  const closeTramite = () => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('tramite');
+    setSearchParams(nextParams, { replace: true });
+    setSelectedTramite(null);
+  };
 
   const filteredTramites = useMemo(() => {
     return TRAMITES_DATA.filter(t => {
@@ -338,7 +377,7 @@ export const TramitesView: React.FC = () => {
           </div>
 
           <div className="categories-filter mb-4 mt-2">
-            {categories.map(cat => (
+            {TRAMITE_CATEGORIES.map(cat => (
               <button
                 key={cat}
                 onClick={() => setActiveCategory(cat)}
@@ -380,7 +419,7 @@ export const TramitesView: React.FC = () => {
                     
                     <button 
                       className="enroll-btn"
-                      onClick={() => setSelectedTramite(tramite)}
+                      onClick={() => openTramite(tramite)}
                     >
                       Ver Detalles
                     </button>
@@ -403,9 +442,9 @@ export const TramitesView: React.FC = () => {
 
       {/* Modal View for Tramite Details */}
       {selectedTramite && createPortal(
-        <div className="modal-overlay animate-fade-in" onClick={() => setSelectedTramite(null)}>
+        <div className="modal-overlay animate-fade-in" onClick={closeTramite}>
           <div className="tramites-modal modal-content animate-slide-up bg-slate-900 border border-slate-700" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={() => setSelectedTramite(null)}>
+            <button className="modal-close" onClick={closeTramite}>
               <X size={24} />
             </button>
             
