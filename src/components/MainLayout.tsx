@@ -32,7 +32,6 @@ export const MainLayout: React.FC = () => {
   const pendingNavPerfRef = useRef<{ path: string; label: string; t0: number } | null>(null);
 
   const markNavPerfStart = (path: string, label: string) => {
-    if (!import.meta.env.DEV) return;
     pendingNavPerfRef.current = { path, label, t0: performance.now() };
   };
 
@@ -41,17 +40,15 @@ export const MainLayout: React.FC = () => {
     if (loginStartEpochMs === null) return;
 
     const deltaMs = Date.now() - loginStartEpochMs;
-    if (import.meta.env.DEV) {
-      console.log('[PERF][WEB] login request → inicio app', {
-        ms: deltaMs,
-        at: location.pathname,
-      });
-    }
+    console.log('[PERF][WEB] login request → inicio app', {
+      ms: deltaMs,
+      at: location.pathname,
+    });
   }, [location.pathname]);
 
   useEffect(() => {
     const pending = pendingNavPerfRef.current;
-    if (!pending || !import.meta.env.DEV) return;
+    if (!pending) return;
 
     if (pending.path === location.pathname) {
       const deltaMs = performance.now() - pending.t0;
@@ -127,10 +124,10 @@ export const MainLayout: React.FC = () => {
           <div className="nav-logo"></div>
           <h2>CuceiVerse</h2>
         </div>
-        
+
         <div className="nav-links">
-          <NavLink 
-            to="/home" 
+          <NavLink
+            to="/home"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             end
             onClick={() => markNavPerfStart('/home', 'Mapa')}
@@ -138,8 +135,8 @@ export const MainLayout: React.FC = () => {
             <Map size={18} />
             <span>Mapa</span>
           </NavLink>
-          <NavLink 
-            to="/subjects" 
+          <NavLink
+            to="/subjects"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             onClick={() => markNavPerfStart('/subjects', 'Oferta Académica')}
           >
@@ -170,8 +167,8 @@ export const MainLayout: React.FC = () => {
             <Trophy size={18} />
             <span>Perfil RPG</span>
           </NavLink>
-          <NavLink 
-            to="/avatars" 
+          <NavLink
+            to="/avatars"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             onClick={() => markNavPerfStart('/avatars', 'Habbo Avatar')}
           >
