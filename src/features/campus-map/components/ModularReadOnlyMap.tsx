@@ -11,6 +11,7 @@ import { useAvatarWalk } from '../hooks/useAvatarWalk';
 import { getMyProfile } from '../../../features/auth/api/auth';
 import { extractFigureFromAvatarValue, resolveAvatarImage } from '../../../lib/avatarImage';
 import { ModularMapCanvas } from './ModularMapCanvas';
+import { usePerfViewLoadEnd } from '../../../lib/usePerfViewLoadEnd';
 import type {
   BuildingBlock,
   GridCell,
@@ -373,6 +374,7 @@ export function ModularReadOnlyMap() {
   const [layout, setLayout] = useState<ModularMapSeed>(fallbackSeed);
   const [status, setStatus] = useState('Cargando mapa modular...');
   const [isSyncing, setIsSyncing] = useState(true);
+  const [canvasReady, setCanvasReady] = useState(false);
   const [viewMode, setViewMode] = useState<'isometric' | '2d'>(getInitialViewMode);
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | null>(null);
   const [originId, setOriginId] = useState('');
@@ -393,6 +395,12 @@ export function ModularReadOnlyMap() {
   const [routeNetwork, setRouteNetwork] = useState<'pasillos' | 'mixta'>('pasillos');
   const [navOpen, setNavOpen] = useState(true);
   const [activeTrip, setActiveTrip] = useState<'navigation' | 'manual' | null>(null);
+
+  usePerfViewLoadEnd({
+    path: '/home',
+    label: 'Mapa',
+    isLoading: isSyncing || !canvasReady,
+  });
 
   const statusLabel = useMemo(() => {
     const normalized = status.toLowerCase();
@@ -1081,6 +1089,7 @@ export function ModularReadOnlyMap() {
             avatarDirection={habboDirection}
             avatarIsMoving={avatarIsMoving}
             avatarImageUrl={habboAvatarUrl}
+            onFirstFrameRendered={() => setCanvasReady(true)}
           />
         </div>
       </div>

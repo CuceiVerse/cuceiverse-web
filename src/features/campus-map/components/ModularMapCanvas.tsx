@@ -85,6 +85,9 @@ type Props = {
   /** Avatar Habbo image URL (optional, falls back to a colored circle). */
   avatarImageUrl?: string;
 
+  /** Notifica cuando Pixi dibuja el primer frame (útil para métricas de carga). */
+  onFirstFrameRendered?: () => void;
+
   /**
    * Dev-only: show an image behind the grid as a template for map construction.
    * Intended for the editor in 2D mode.
@@ -452,8 +455,10 @@ export function ModularMapCanvas({
   avatarDirection,
   avatarIsMoving = false,
   avatarImageUrl,
+  onFirstFrameRendered,
   templateUnderlayEnabled = false,
 }: Props) {
+  const didNotifyFirstFrameRef = useRef(false);
   const showTemplateUnderlay =
     import.meta.env.DEV &&
     templateUnderlayEnabled &&
@@ -1353,6 +1358,11 @@ export function ModularMapCanvas({
   const drawScene = useCallback((graphics: Graphics) => {
     graphics.clear();
 
+    if (!didNotifyFirstFrameRef.current) {
+      didNotifyFirstFrameRef.current = true;
+      onFirstFrameRendered?.();
+    }
+
     for (let row = 0; row < editorState.grid.rows; row += 1) {
       for (let column = 0; column < editorState.grid.columns; column += 1) {
         if (!editorState.areaCellsByKey[`${column}:${row}`]) {
@@ -1801,6 +1811,7 @@ export function ModularMapCanvas({
     altPolylines,
     asphaltCells,
     buildings,
+    onFirstFrameRendered,
     editorState.activeAreaFootprint,
     editorState.activeBuildingFootprint,
     editorState.activeTool,

@@ -18,7 +18,7 @@ import { useAcademicOffer } from '../context/useAcademicOffer';
 import { CampusAssistantWidget } from '../features/assistant/components/CampusAssistantWidget';
 import { ConfirmModal } from './ConfirmModal';
 import { resolveAvatarImage } from '../lib/avatarImage';
-import { popPerfMark } from '../lib/perfMarks';
+import { setPerfMark } from '../lib/perfMarks';
 import './MainLayout.css';
 
 export const MainLayout: React.FC = () => {
@@ -29,38 +29,11 @@ export const MainLayout: React.FC = () => {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const pendingNavPerfRef = useRef<{ path: string; label: string; t0: number } | null>(null);
 
-  const markNavPerfStart = (path: string, label: string) => {
-    pendingNavPerfRef.current = { path, label, t0: performance.now() };
+  const markNavStart = (path: string) => {
+    if (location.pathname === path) return;
+    setPerfMark(`nav.start:${path}`);
   };
-
-  useEffect(() => {
-    const loginStartEpochMs = popPerfMark('login.request.start');
-    if (loginStartEpochMs === null) return;
-
-    const deltaMs = Date.now() - loginStartEpochMs;
-    console.log('[PERF][WEB] login request → inicio app', {
-      ms: deltaMs,
-      at: location.pathname,
-    });
-  }, [location.pathname]);
-
-  useEffect(() => {
-    const pending = pendingNavPerfRef.current;
-    if (!pending) return;
-
-    if (pending.path === location.pathname) {
-      const deltaMs = performance.now() - pending.t0;
-      console.log('[PERF][WEB] submenú → render', {
-        label: pending.label,
-        path: pending.path,
-        ms: Number(deltaMs.toFixed(1)),
-      });
-    }
-
-    pendingNavPerfRef.current = null;
-  }, [location.pathname]);
 
   useEffect(() => {
     if (!token) {
@@ -130,7 +103,7 @@ export const MainLayout: React.FC = () => {
             to="/home"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             end
-            onClick={() => markNavPerfStart('/home', 'Mapa')}
+            onClick={() => markNavStart('/home')}
           >
             <Map size={18} />
             <span>Mapa</span>
@@ -138,7 +111,7 @@ export const MainLayout: React.FC = () => {
           <NavLink
             to="/subjects"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            onClick={() => markNavPerfStart('/subjects', 'Oferta Académica')}
+            onClick={() => markNavStart('/subjects')}
           >
             <BookOpen size={18} />
             <span>Oferta Académica</span>
@@ -146,7 +119,7 @@ export const MainLayout: React.FC = () => {
           <NavLink
             to="/schedule"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            onClick={() => markNavPerfStart('/schedule', 'Horario')}
+            onClick={() => markNavStart('/schedule')}
           >
             <CalendarDays size={18} />
             <span>Horario</span>
@@ -154,7 +127,7 @@ export const MainLayout: React.FC = () => {
           <NavLink
             to="/tramites"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            onClick={() => markNavPerfStart('/tramites', 'Trámites')}
+            onClick={() => markNavStart('/tramites')}
           >
             <FileText size={18} />
             <span>Trámites</span>
@@ -162,7 +135,7 @@ export const MainLayout: React.FC = () => {
           <NavLink
             to="/profile-hud"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            onClick={() => markNavPerfStart('/profile-hud', 'Perfil RPG')}
+            onClick={() => markNavStart('/profile-hud')}
           >
             <Trophy size={18} />
             <span>Perfil RPG</span>
@@ -170,7 +143,7 @@ export const MainLayout: React.FC = () => {
           <NavLink
             to="/avatars"
             className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-            onClick={() => markNavPerfStart('/avatars', 'Habbo Avatar')}
+            onClick={() => markNavStart('/avatars')}
           >
             <User size={18} />
             <span>Habbo Avatar</span>
@@ -179,7 +152,7 @@ export const MainLayout: React.FC = () => {
             <NavLink
               to="/admin/mapa"
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              onClick={() => markNavPerfStart('/admin/mapa', 'Editor Mapa')}
+              onClick={() => markNavStart('/admin/mapa')}
             >
               <Settings size={18} />
               <span>Editor Mapa</span>

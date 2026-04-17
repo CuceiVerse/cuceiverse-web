@@ -14,6 +14,7 @@ import {
   Globe,
   Building2
 } from 'lucide-react';
+import { usePerfViewLoadEnd } from '../lib/usePerfViewLoadEnd';
 import './TramitesView.css';
 
 interface Tramite {
@@ -284,6 +285,12 @@ const TRAMITES_DATA: Tramite[] = [
 ];
 
 export const TramitesView: React.FC = () => {
+  usePerfViewLoadEnd({
+    path: '/tramites',
+    label: 'Trámites',
+    isLoading: false,
+  });
+
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('Todas');

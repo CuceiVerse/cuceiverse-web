@@ -3,6 +3,7 @@ import { CalendarDays, Clock3, Building2, MapPin, AlertCircle } from 'lucide-rea
 import { Link } from 'react-router-dom';
 import { useAcademicOffer } from '../context/useAcademicOffer';
 import type { AcademicOfferRecord } from '../context/AcademicOfferContextStore';
+import { usePerfViewLoadEnd } from '../lib/usePerfViewLoadEnd';
 import './StudentScheduleView.css';
 
 type DayKey = 'L' | 'M' | 'I' | 'J' | 'V' | 'S' | 'D';
@@ -191,6 +192,12 @@ export const StudentScheduleView: React.FC = () => {
   const [dayFilter, setDayFilter] = useState<'ALL' | DayKey>('ALL');
   const [professorFilter, setProfessorFilter] = useState('ALL');
   const [modalityFilter, setModalityFilter] = useState<ModalityKey>('ALL');
+
+  usePerfViewLoadEnd({
+    path: '/schedule',
+    label: 'Horario',
+    isLoading: offerState.status !== 'ready' && offerState.status !== 'error',
+  });
 
   const studentNrcSet = useMemo(() => {
     const set = new Set<string>();

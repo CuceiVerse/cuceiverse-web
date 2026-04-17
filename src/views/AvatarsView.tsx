@@ -7,6 +7,7 @@ import {
 import { extractFigureFromAvatarValue } from "../lib/avatarImage";
 import { useAuth } from "../context/useAuth";
 import { getMyProfile, updateMyAvatar } from "../features/auth/api/auth";
+import { usePerfViewLoadEnd } from "../lib/usePerfViewLoadEnd";
 import "./AvatarsView.css";
 
 type Gender = "M" | "F";
@@ -158,6 +159,12 @@ export const AvatarsView: React.FC = () => {
   );
 
   const isFullyLoading = loading || initializing || !profileChecked;
+
+  usePerfViewLoadEnd({
+    path: '/avatars',
+    label: 'Habbo Avatar',
+    isLoading: isFullyLoading,
+  });
 
   // Debounced parts snapshot — used only for item tile previews.
   // Prevents flooding the imager with 20+ requests every time the user clicks.

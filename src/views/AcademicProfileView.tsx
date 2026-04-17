@@ -7,12 +7,19 @@ import { useAuth } from '../context/useAuth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
 import mockData from '../data/mockSubjects.json';
 import type { AcademicOfferRecord } from '../context/AcademicOfferContextStore';
+import { usePerfViewLoadEnd } from '../lib/usePerfViewLoadEnd';
 
 import './AcademicProfileView.css';
 
 export const AcademicProfileView: React.FC = () => {
   const { token } = useAuth();
   const { state: offerState, loadAcademicOffer } = useAcademicOffer();
+
+  usePerfViewLoadEnd({
+    path: '/profile-hud',
+    label: 'Perfil RPG',
+    isLoading: offerState.status !== 'ready' && offerState.status !== 'error',
+  });
 
   useEffect(() => {
     if (!token) return;

@@ -6,6 +6,7 @@ import mockData from '../data/mockSubjects.json';
 import { useAuth } from '../context/useAuth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
 import type { AcademicOfferRecord } from '../context/AcademicOfferContextStore';
+import { usePerfViewLoadEnd } from '../lib/usePerfViewLoadEnd';
 import './SubjectsView.css';
 
 interface Subject {
@@ -76,6 +77,12 @@ export const SubjectsView: React.FC = () => {
   const [reloadSuccess, setReloadSuccess] = useState(false);
   
   const [searchParams] = useSearchParams();
+
+  usePerfViewLoadEnd({
+    path: '/subjects',
+    label: 'Oferta Académica',
+    isLoading: offerState.status !== 'ready' && offerState.status !== 'error',
+  });
 
   useEffect(() => {
     const q = searchParams.get('q') || searchParams.get('edificio');

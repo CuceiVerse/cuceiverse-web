@@ -38,6 +38,20 @@ export function clearPerfMark(key: string): void {
   }
 }
 
+export function getPerfMark(key: string): number | null {
+  const storage = safeSessionStorage();
+  if (!storage) return null;
+
+  try {
+    const raw = storage.getItem(storageKey(key));
+    if (!raw) return null;
+    const value = Number(raw);
+    return Number.isFinite(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 export function popPerfMark(key: string): number | null {
   const storage = safeSessionStorage();
   if (!storage) return null;

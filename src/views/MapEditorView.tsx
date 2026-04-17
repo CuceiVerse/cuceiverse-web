@@ -31,6 +31,7 @@ import type {
   ModularMapSeed,
   PropKind,
 } from '../features/campus-map/editor/modularMapTypes';
+import { usePerfViewLoadEnd } from '../lib/usePerfViewLoadEnd';
 import './MapEditorView.css';
 
 type DragPalettePayload =
@@ -112,6 +113,13 @@ export function MapEditorView() {
   const [viewMode, setViewMode] = useState<'isometric' | '2d'>(getInitialViewMode);
   const [runtimeSeedSaved, setRuntimeSeedSaved] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
+  const [canvasReady, setCanvasReady] = useState(false);
+
+  usePerfViewLoadEnd({
+    path: '/admin/mapa',
+    label: 'Editor Mapa',
+    isLoading: loadingLayout || isSyncing || !canvasReady,
+  });
 
   const payload = useMemo(
     () => serializeForSave(),
@@ -525,6 +533,7 @@ export function MapEditorView() {
             onPlaceProp={handlePlaceProp}
             viewMode={viewMode}
             templateUnderlayEnabled
+            onFirstFrameRendered={() => setCanvasReady(true)}
           />
         </div>
 
