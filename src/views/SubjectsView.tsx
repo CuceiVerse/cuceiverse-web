@@ -29,7 +29,7 @@ const normalize = (str: string) =>
 
 const getModalidad = (edificio: string | number | null | undefined) => {
   const ed = String(edificio || '').toUpperCase();
-  
+
   if (!ed || ed === 'N/A' || ed === 'UNDEFINED') {
     return { text: 'Por Definir', icon: <Users size={14} />, class: 'mod-unknown' };
   }
@@ -49,7 +49,7 @@ const getModalidad = (edificio: string | number | null | undefined) => {
 const formatDays = (diasStr: string | number | null | undefined) => {
   if (!diasStr) return 'N/A';
   const str = String(diasStr).toUpperCase();
-  
+
   const map: Record<string, string> = {
     'L': 'Lunes',
     'M': 'Martes',
@@ -60,9 +60,9 @@ const formatDays = (diasStr: string | number | null | undefined) => {
   };
 
   const daysFound = str.split('').filter(char => map[char]);
-  
+
   if (daysFound.length === 0) return 'N/A';
-  
+
   return daysFound.map(char => map[char]).join(', ');
 };
 
@@ -75,7 +75,7 @@ export const SubjectsView: React.FC = () => {
   const [reloading, setReloading] = useState(false);
   const [reloadError, setReloadError] = useState<string | null>(null);
   const [reloadSuccess, setReloadSuccess] = useState(false);
-  
+
   const [searchParams] = useSearchParams();
 
   usePerfViewLoadEnd({
@@ -122,15 +122,15 @@ export const SubjectsView: React.FC = () => {
 
       while (!finished) {
         await new Promise(r => setTimeout(r, 3000));
-        
+
         const statusRes = await fetch(`${API_BASE}/offer/reload/status`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
         if (!statusRes.ok) throw new Error('Se perdió la conexión con el servidor de horarios.');
-        
+
         const statusData = await statusRes.json();
-        
+
         if (statusData.lastError) {
           throw new Error(statusData.lastError);
         }
@@ -180,7 +180,7 @@ export const SubjectsView: React.FC = () => {
   const filteredSubjects = useMemo(() => {
     const q = normalize(searchTerm.trim());
     if (!q) return sourceSubjects;
-    
+
     return sourceSubjects.filter((subject) => {
       const modText = normalize(getModalidad(subject.Edificio).text);
 
@@ -213,119 +213,119 @@ export const SubjectsView: React.FC = () => {
     <>
       <div className="subjects-scroll-area">
         <div className="subjects-container animate-fade-in">
-      <div className="subjects-header">
-        <div className="header-title">
-          <div className="icon-wrapper">
-            <Book size={28} />
-          </div>
-          <div>
-            <h1>Oferta Académica</h1>
-            <p>Explorando {sourceSubjects.length.toLocaleString()} materias disponibles en CUCEI.</p>
-          </div>
-        </div>
-
-        <div className="search-wrapper glass-panel">
-          <Search size={20} className="search-icon" />
-          <input
-            type="text"
-            placeholder="Buscar por materia, profesor, NRC, virtual, presencial..."
-            value={searchTerm}
-            onChange={handleSearchChange}
-          />
-        </div>
-
-        <div className="reload-controls">
-          <button
-            className={`reload-btn glass-panel${reloading ? ' reloading' : ''}${reloadSuccess ? ' success' : ''}`}
-            onClick={() => void handleReload()}
-            disabled={reloading}
-            title="Vuelve a descargar la oferta académica más reciente de SIIAU"
-          >
-            <RefreshCw size={16} className={reloading ? 'spin-icon' : ''} />
-            <span>{reloading ? 'Cargando...' : reloadSuccess ? '¡Actualizado!' : 'Volver a cargar'}</span>
-          </button>
-          {reloadError && (
-            <span className="reload-error">
-              ⚠️ {reloadError}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="subjects-grid">
-        {canShowSubjects && currentSubjects.length > 0 ? (
-          currentSubjects.map((subject, index) => {
-            const modalidad = getModalidad(subject.Edificio);
-            
-            return (
-              <div key={`${subject.NRC}-${index}`} className="subject-card glass-panel">
-                <div className="card-header">
-                  <span className="subject-nrc">NRC: {subject.NRC}</span>
-                  <div className="header-badges">
-                    <span className={`modality-badge ${modalidad.class}`} title={modalidad.text}>
-                      {modalidad.icon}
-                      <span className="modality-text">{modalidad.text}</span>
-                    </span>
-                    <span className="subject-cr">{subject.CR || 0} CR</span>
-                  </div>
-                </div>
-                
-                <h3 className="subject-title">{subject.Materia || 'Sin Nombre'}</h3>
-                <div className="subject-clave">{subject.Clave || 'S/C'}</div>
-                
-                <div className="subject-details preview-details">
-                  <div className="detail-row">
-                    <UserSquare size={16} className="detail-icon" />
-                    <span className="truncate">{subject.Profesor || 'Sin Profesor Asignado'}</span>
-                  </div>
-                  <div className="detail-row">
-                    <Clock size={16} className="detail-icon" />
-                    <span>{subject.Hora || 'Sin Horario'} | {formatDays(subject.Dias)}</span>
-                  </div>
-                </div>
-                
-                <button 
-                  className="enroll-btn"
-                  onClick={() => setSelectedSubject(subject)}
-                >
-                  Ver Detalles
-                </button>
+          <div className="subjects-header">
+            <div className="header-title">
+              <div className="icon-wrapper">
+                <Book size={28} />
               </div>
-            );
-          })
-        ) : (
-          <div className="no-results glass-panel">
-            <Book size={48} className="muted-icon" />
-            <h3>No se encontraron materias</h3>
-            <p>Intenta ajustar tu búsqueda.</p>
+              <div>
+                <h1>Oferta Académica</h1>
+                <p>Explorando {sourceSubjects.length.toLocaleString()} materias disponibles en CUCEI.</p>
+              </div>
+            </div>
+
+            <div className="search-wrapper glass-panel">
+              <Search size={20} className="search-icon" />
+              <input
+                type="text"
+                placeholder="Buscar por materia, profesor, NRC, virtual, presencial..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+              />
+            </div>
+
+            <div className="reload-controls">
+              <button
+                className={`reload-btn glass-panel${reloading ? ' reloading' : ''}${reloadSuccess ? ' success' : ''}`}
+                onClick={() => void handleReload()}
+                disabled={reloading}
+                title="Vuelve a descargar la oferta académica más reciente de SIIAU"
+              >
+                <RefreshCw size={16} className={reloading ? 'spin-icon' : ''} />
+                <span>{reloading ? 'Cargando...' : reloadSuccess ? '¡Actualizado!' : 'Volver a cargar'}</span>
+              </button>
+              {reloadError && (
+                <span className="reload-error">
+                  ⚠️ {reloadError}
+                </span>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+
+          <div className="subjects-grid">
+            {canShowSubjects && currentSubjects.length > 0 ? (
+              currentSubjects.map((subject, index) => {
+                const modalidad = getModalidad(subject.Edificio);
+
+                return (
+                  <div key={`${subject.NRC}-${index}`} className="subject-card glass-panel">
+                    <div className="card-header">
+                      <span className="subject-nrc">NRC: {subject.NRC}</span>
+                      <div className="header-badges">
+                        <span className={`modality-badge ${modalidad.class}`} title={modalidad.text}>
+                          {modalidad.icon}
+                          <span className="modality-text">{modalidad.text}</span>
+                        </span>
+                        <span className="subject-cr">{subject.CR || 0} CR</span>
+                      </div>
+                    </div>
+
+                    <h3 className="subject-title">{subject.Materia || 'Sin Nombre'}</h3>
+                    <div className="subject-clave">{subject.Clave || 'S/C'}</div>
+
+                    <div className="subject-details preview-details">
+                      <div className="detail-row">
+                        <UserSquare size={16} className="detail-icon" />
+                        <span className="truncate">{subject.Profesor || 'Sin Profesor Asignado'}</span>
+                      </div>
+                      <div className="detail-row">
+                        <Clock size={16} className="detail-icon" />
+                        <span>{subject.Hora || 'Sin Horario'} | {formatDays(subject.Dias)}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      className="enroll-btn"
+                      onClick={() => setSelectedSubject(subject)}
+                    >
+                      Ver Detalles
+                    </button>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="no-results glass-panel">
+                <Book size={48} className="muted-icon" />
+                <h3>No se encontraron materias</h3>
+                <p>Intenta ajustar tu búsqueda.</p>
+              </div>
+            )}
+          </div>
 
           {canShowSubjects && totalPages > 1 && (
             <div className="pagination-controls">
-          <button 
-            className="pagination-btn glass-panel"
-            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft size={20} />
-            Anterior
-          </button>
-          
-          <div className="pagination-info glass-panel">
-            Página {currentPage} de {totalPages}
-            <span className="pagination-total">({filteredSubjects.length} resultados)</span>
-          </div>
+              <button
+                className="pagination-btn glass-panel"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft size={20} />
+                Anterior
+              </button>
 
-          <button 
-            className="pagination-btn glass-panel"
-            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Siguiente
-            <ChevronRight size={20} />
-          </button>
+              <div className="pagination-info glass-panel">
+                Página {currentPage} de {totalPages}
+                <span className="pagination-total">({filteredSubjects.length} resultados)</span>
+              </div>
+
+              <button
+                className="pagination-btn glass-panel"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Siguiente
+                <ChevronRight size={20} />
+              </button>
             </div>
           )}
         </div>
@@ -338,7 +338,7 @@ export const SubjectsView: React.FC = () => {
             <button className="modal-close" onClick={() => setSelectedSubject(null)}>
               <X size={24} />
             </button>
-            
+
             <div className="modal-header">
               <span className="subject-nrc">NRC: {selectedSubject.NRC}</span>
               <div className="header-badges">
@@ -354,9 +354,9 @@ export const SubjectsView: React.FC = () => {
                 <span className="subject-cr">{selectedSubject.CR || 0} Créditos</span>
               </div>
             </div>
-            
+
             <h2 className="modal-title">{selectedSubject.Materia || 'Sin Nombre'}</h2>
-            
+
             <div className="modal-details-grid">
               <div className="detail-item">
                 <UserSquare size={18} className="detail-icon" />
@@ -365,7 +365,7 @@ export const SubjectsView: React.FC = () => {
                   <span className="detail-value">{selectedSubject.Profesor || 'Sin Asignar'}</span>
                 </div>
               </div>
-              
+
               <div className="detail-item">
                 <Clock size={18} className="detail-icon" />
                 <div>
@@ -373,7 +373,7 @@ export const SubjectsView: React.FC = () => {
                   <span className="detail-value">{selectedSubject.Hora || 'N/A'}</span>
                 </div>
               </div>
-              
+
               <div className="detail-item">
                 <Calendar size={18} className="detail-icon" />
                 <div>

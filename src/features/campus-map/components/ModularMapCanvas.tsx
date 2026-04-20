@@ -1234,14 +1234,14 @@ export function ModularMapCanvas({
     const nextSrc =
       avatarFigure
         ? resolveAvatarImage(avatarFigure, {
-            size: 'n',
-            direction: pose.direction,
-            headDirection: pose.direction,
-            action: pose.action,
-            gesture: 'std',
-            format: 'png',
-            frame: pose.frame,
-          })
+          size: 'n',
+          direction: pose.direction,
+          headDirection: pose.direction,
+          action: pose.action,
+          gesture: 'std',
+          format: 'png',
+          frame: pose.frame,
+        })
         : avatarImageUrl ?? null;
 
     const mainTransform = `translate3d(-50%, -100%, 0) scaleX(${pose.mirror ? -1 : 1})`;
@@ -1363,36 +1363,41 @@ export function ModularMapCanvas({
       onFirstFrameRendered?.();
     }
 
-    for (let row = 0; row < editorState.grid.rows; row += 1) {
-      for (let column = 0; column < editorState.grid.columns; column += 1) {
-        if (!editorState.areaCellsByKey[`${column}:${row}`]) {
-          continue;
-        }
+    for (const rawKey in editorState.areaCellsByKey) {
+      const separatorIndex = rawKey.indexOf(':');
+      if (separatorIndex <= 0) {
+        continue;
+      }
 
-        const path = editorState.pathsByCell[`${column}:${row}`];
-        const fill = path
-          ? path.material === 'pavers'
-            ? 0xd8d0bc
-            : path.material === 'grass-transition'
-              ? 0x8cb989
-              : path.material === 'indoor'
-                ? 0xe7d7b5
-                : 0xc8cfd8
-          : (column + row) % 2 === 0
-            ? 0x86c56e
-            : 0x7bb864;
-        const stroke = path ? 0x6f7f8e : 0x5e8b4c;
-        if (viewMode === '2d') {
-          drawTopDownTile(
-            graphics,
-            { x: column, y: row },
-            fill,
-            templateTileAlpha,
-            stroke,
-          );
-        } else {
-          drawGridTile(graphics, { x: column, y: row }, editorState.grid, fill, 1, stroke);
-        }
+      const column = Number(rawKey.slice(0, separatorIndex));
+      const row = Number(rawKey.slice(separatorIndex + 1));
+      if (!Number.isFinite(column) || !Number.isFinite(row)) {
+        continue;
+      }
+
+      const path = editorState.pathsByCell[rawKey];
+      const fill = path
+        ? path.material === 'pavers'
+          ? 0xd8d0bc
+          : path.material === 'grass-transition'
+            ? 0x8cb989
+            : path.material === 'indoor'
+              ? 0xe7d7b5
+              : 0xc8cfd8
+        : (column + row) % 2 === 0
+          ? 0x86c56e
+          : 0x7bb864;
+      const stroke = path ? 0x6f7f8e : 0x5e8b4c;
+      if (viewMode === '2d') {
+        drawTopDownTile(
+          graphics,
+          { x: column, y: row },
+          fill,
+          templateTileAlpha,
+          stroke,
+        );
+      } else {
+        drawGridTile(graphics, { x: column, y: row }, editorState.grid, fill, 1, stroke);
       }
     }
 

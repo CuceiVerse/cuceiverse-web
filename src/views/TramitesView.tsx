@@ -1,12 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
-import { 
-  ClipboardCheck, 
-  Search, 
-  BookOpen, 
-  Clock, 
-  MapPin, 
+import {
+  ClipboardCheck,
+  Search,
+  BookOpen,
+  Clock,
+  MapPin,
   X,
   FileText,
   AlertTriangle,
@@ -337,10 +337,10 @@ export const TramitesView: React.FC = () => {
   const filteredTramites = useMemo(() => {
     return TRAMITES_DATA.filter(t => {
       const searchLower = searchTerm.toLowerCase();
-      const matchesSearch = t.title.toLowerCase().includes(searchLower) || 
-                           t.description.toLowerCase().includes(searchLower) ||
-                           t.requirements.some(r => r.toLowerCase().includes(searchLower));
-                           
+      const matchesSearch = t.title.toLowerCase().includes(searchLower) ||
+        t.description.toLowerCase().includes(searchLower) ||
+        t.requirements.some(r => r.toLowerCase().includes(searchLower));
+
       const matchesCategory = activeCategory === 'Todas' || t.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
@@ -350,7 +350,7 @@ export const TramitesView: React.FC = () => {
     <>
       <div className="tramites-scroll-area bg-slate-950">
         <div className="tramites-container animate-fade-in">
-          
+
           <div className="tramites-header">
             <div className="header-title">
               <div className="icon-wrapper">
@@ -378,7 +378,7 @@ export const TramitesView: React.FC = () => {
               <AlertTriangle size={18} /> Nota Importante Sobre Pagos
             </h4>
             <p className="text-slate-300 text-sm leading-relaxed">
-              En caso de que el trámite tenga un costo, éste será cargado a tu Orden de Pago en SIIAU automáticamente. 
+              En caso de que el trámite tenga un costo, éste será cargado a tu Orden de Pago en SIIAU automáticamente.
               Para recibir tu documento en ventanilla <strong className="text-white">NO ES NECESARIO PRESENTAR TU PAGO FISICO</strong>, sólo el Comprobante de Trámite impreso desde el SIATCE.
             </p>
           </div>
@@ -399,7 +399,7 @@ export const TramitesView: React.FC = () => {
             {filteredTramites.length > 0 ? (
               filteredTramites.map((tramite) => {
                 const isGratuito = tramite.cost.toLowerCase() === 'gratuito' || tramite.cost.toLowerCase() === 'sin costo';
-                
+
                 return (
                   <div key={tramite.id} className="tramite-card glass-panel shadow-lg shadow-cyan-900/5">
                     <div className="card-header">
@@ -411,7 +411,7 @@ export const TramitesView: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    
+
                     <h3 className="tramite-title">{tramite.title}</h3>
                     <div className="tramite-details">
                       <div className="detail-row">
@@ -423,8 +423,8 @@ export const TramitesView: React.FC = () => {
                         <span className="truncate" title={tramite.location}>{tramite.location}</span>
                       </div>
                     </div>
-                    
-                    <button 
+
+                    <button
                       className="enroll-btn"
                       onClick={() => openTramite(tramite)}
                     >
@@ -441,7 +441,7 @@ export const TramitesView: React.FC = () => {
               </div>
             )}
           </div>
-          
+
 
 
         </div>
@@ -454,14 +454,14 @@ export const TramitesView: React.FC = () => {
             <button className="modal-close" onClick={closeTramite}>
               <X size={24} />
             </button>
-            
+
             <div className="modal-header">
               <span className="tramite-badge bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 px-3 py-1">{selectedTramite.category}</span>
             </div>
-            
+
             <h2 className="modal-title">{selectedTramite.title}</h2>
             <p className="modal-description">{selectedTramite.description}</p>
-            
+
             <div className="modal-details-grid">
               <div className="detail-item">
                 <Banknote size={18} className="detail-icon" />
@@ -470,7 +470,7 @@ export const TramitesView: React.FC = () => {
                   <span className="detail-value">{selectedTramite.cost}</span>
                 </div>
               </div>
-              
+
               <div className="detail-item">
                 <Clock size={18} className="detail-icon" />
                 <div>
@@ -478,7 +478,7 @@ export const TramitesView: React.FC = () => {
                   <span className="detail-value">{selectedTramite.time}</span>
                 </div>
               </div>
-              
+
               <div className="detail-item">
                 <Building2 size={18} className="detail-icon" />
                 <div>
@@ -486,7 +486,7 @@ export const TramitesView: React.FC = () => {
                   <span className="detail-value">{selectedTramite.location}</span>
                 </div>
               </div>
-              
+
             </div>
 
             <div className="mt-6 mb-2">
@@ -507,7 +507,7 @@ export const TramitesView: React.FC = () => {
 
             <div className="modal-actions">
               {selectedTramite.externalUrl && (
-                <a 
+                <a
                   href={selectedTramite.externalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -516,7 +516,7 @@ export const TramitesView: React.FC = () => {
                   <FileText size={18} /> Descargar PDF
                 </a>
               )}
-              <a 
+              <a
                 href="https://escolar.cucei.udg.mx/cescolar/login.aspx"
                 target="_blank"
                 rel="noopener noreferrer"
