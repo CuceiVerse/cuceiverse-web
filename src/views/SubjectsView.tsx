@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Search, Book, Clock, UserSquare, MapPin, ChevronLeft, ChevronRight, Hash, Building2, Calendar, X, Laptop, Users, MonitorSmartphone, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/useAuth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
+import type { AcademicOfferRecord } from '../context/AcademicOfferContextStore';
 import { usePerfViewLoadEnd } from '../lib/usePerfViewLoadEnd';
 import './SubjectsView.css';
 
@@ -116,7 +117,7 @@ export const SubjectsView: React.FC = () => {
 
       // 2. Polling: esperar a que termine
       let finished = false;
-      let lastResult: any = null;
+      let lastResult: AcademicOfferRecord[] | null = null;
 
       while (!finished) {
         await new Promise(r => setTimeout(r, 3000));
@@ -135,7 +136,9 @@ export const SubjectsView: React.FC = () => {
 
         if (!statusData.running && statusData.hasResult) {
           finished = true;
-          lastResult = statusData.materias;
+          lastResult = Array.isArray(statusData.materias)
+            ? (statusData.materias as AcademicOfferRecord[])
+            : null;
         }
 
         // Si por alguna razón deja de correr sin resultado

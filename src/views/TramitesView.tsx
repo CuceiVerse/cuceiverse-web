@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -292,46 +292,41 @@ export const TramitesView: React.FC = () => {
   });
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState<string>('Todas');
-  const [selectedTramite, setSelectedTramite] = useState<Tramite | null>(null);
-
-  useEffect(() => {
+  const initialSearchState = useMemo(() => {
     const qParam = searchParams.get('q');
+    if (!qParam) {
+      return { searchTerm: '', activeCategory: 'Todas' as string };
+    }
+
+    const decoded = decodeURIComponent(qParam);
+    if (TRAMITE_CATEGORIES.includes(decoded)) {
+      return { searchTerm: '', activeCategory: decoded };
+    }
+
+    return { searchTerm: decoded, activeCategory: 'Todas' };
+  }, [searchParams]);
+
+  const [searchTerm, setSearchTerm] = useState(initialSearchState.searchTerm);
+  const [activeCategory, setActiveCategory] = useState<string>(initialSearchState.activeCategory);
+
+  const selectedTramite = useMemo(() => {
     const tramiteId = searchParams.get('tramite');
-
-    if (qParam) {
-      const decoded = decodeURIComponent(qParam);
-      if (TRAMITE_CATEGORIES.includes(decoded)) {
-        setActiveCategory(decoded);
-        setSearchTerm('');
-      } else {
-        setActiveCategory('Todas');
-        setSearchTerm(decoded);
-      }
+    if (!tramiteId) {
+      return null;
     }
-
-    if (tramiteId) {
-      const found = TRAMITES_DATA.find((tramite) => tramite.id === tramiteId) ?? null;
-      setSelectedTramite((current) => (current?.id === found?.id ? current : found));
-      return;
-    }
-
-    setSelectedTramite((current) => (current ? null : current));
+    return TRAMITES_DATA.find((tramite) => tramite.id === tramiteId) ?? null;
   }, [searchParams]);
 
   const openTramite = (tramite: Tramite) => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set('tramite', tramite.id);
     setSearchParams(nextParams, { replace: true });
-    setSelectedTramite(tramite);
   };
 
   const closeTramite = () => {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete('tramite');
     setSearchParams(nextParams, { replace: true });
-    setSelectedTramite(null);
   };
 
   const filteredTramites = useMemo(() => {

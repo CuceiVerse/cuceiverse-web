@@ -122,7 +122,7 @@ function parseDays(raw: string | null | undefined): DayKey[] {
   const compact = source.replace(/\s+/g, '');
   const template = ['L', 'M', 'I', 'J', 'V', 'S'];
 
-  if (compact.length >= 6 && /^[LMIJVS\.]+$/.test(compact)) {
+  if (compact.length >= 6 && /^[LMIJVS.]+$/.test(compact)) {
     const out: DayKey[] = [];
     for (let i = 0; i < Math.min(template.length, compact.length); i += 1) {
       if (compact[i] !== '.') {
