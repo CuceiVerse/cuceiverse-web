@@ -212,7 +212,7 @@ export function CampusAssistantWidget() {
   return (
     <>
       {open ? (
-        <section className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-[calc(1.5rem+env(safe-area-inset-left))] z-[1200] flex h-[min(36rem,calc(100dvh-2rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/90 shadow-[0_0_80px_rgba(0,0,0,0.8),0_0_30px_rgba(34,211,238,0.15)] backdrop-blur-xl">
+        <section className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-[calc(1.5rem+env(safe-area-inset-right))] z-[1200] flex h-[min(36rem,calc(100dvh-2rem))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950/90 shadow-[0_0_80px_rgba(0,0,0,0.8),0_0_30px_rgba(34,211,238,0.15)] backdrop-blur-xl">
           <header className="flex items-center justify-between border-b border-white/5 bg-gradient-to-r from-slate-900 to-slate-800 px-4 py-3 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-emerald-400 text-slate-900 shadow-[0_0_15px_rgba(34,211,238,0.4)]">
@@ -307,7 +307,7 @@ export function CampusAssistantWidget() {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-[calc(1.5rem+env(safe-area-inset-left))] z-[1199] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-600 to-emerald-500 text-white shadow-[0_10px_35px_rgba(16,185,129,0.35)] transition-all hover:scale-110 hover:shadow-[0_15px_40px_rgba(34,211,238,0.5)] active:scale-95"
+        className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-[calc(1.5rem+env(safe-area-inset-right))] z-[1199] flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500 text-cyan-950 shadow-[0_10px_35px_rgba(8,145,178,0.25)] transition-all hover:scale-110 active:scale-95"
         aria-label="Abrir asistente universitario"
       >
         <MessageCircle size={28} />

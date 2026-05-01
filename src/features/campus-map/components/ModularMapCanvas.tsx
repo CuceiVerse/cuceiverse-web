@@ -93,6 +93,12 @@ type Props = {
    * Intended for the editor in 2D mode.
    */
   templateUnderlayEnabled?: boolean;
+  /** Optional external controller ref to expose zoom/reset controls. */
+  controllerRef?: MutableRefObject<{
+    zoomIn: () => void;
+    zoomOut: () => void;
+    reset: () => void;
+  } | null>;
 };
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
@@ -464,6 +470,7 @@ export function ModularMapCanvas({
   avatarImageUrl,
   onFirstFrameRendered,
   templateUnderlayEnabled = false,
+  controllerRef,
 }: Props) {
   const didNotifyFirstFrameRef = useRef(false);
   const showTemplateUnderlay =
@@ -704,6 +711,18 @@ export function ModularMapCanvas({
   );
 
   useEffect(() => {
+    if (!controllerRef) return;
+    controllerRef.current = {
+      zoomIn: () => zoomCamera(1.15),
+      zoomOut: () => zoomCamera(1 / 1.15),
+      reset: () => resetCamera(),
+    };
+    return () => {
+      if (controllerRef) controllerRef.current = null;
+    };
+  }, [controllerRef, zoomCamera, resetCamera]);
+
+  useEffect(() => {
     applyCameraTransform(camera);
   }, [applyCameraTransform, camera]);
 
@@ -854,6 +873,16 @@ export function ModularMapCanvas({
     if (!didMeasureViewportRef.current) {
       return;
     }
+
+    // Ignore spurious very-small measurements that sometimes occur on first
+    // paint (e.g. 0x0 or very small values). Wait until the viewport has a
+    // reasonable size before performing the initial auto-fit so a later
+    // ResizeObserver update can still trigger the fit.
+    const MIN_VIEWPORT_DIM = 120;
+    if (viewportSize.width < MIN_VIEWPORT_DIM || viewportSize.height < MIN_VIEWPORT_DIM) {
+      return;
+    }
+
     const modeChanged = lastAutoFitModeRef.current !== viewMode;
     if (!didAutoFitRef.current || modeChanged) {
       const nextCamera = fitCameraToBounds(viewportSize, campusBounds);

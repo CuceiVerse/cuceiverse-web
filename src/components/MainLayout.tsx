@@ -104,7 +104,7 @@ export const MainLayout: React.FC = () => {
       <nav className="navbar glass-panel flex-none">
         <div className="nav-brand">
           <div className="nav-logo"></div>
-          <h2>CuceiVerse</h2>
+          <h2>CUCEIVERSE</h2>
         </div>
 
         <button
@@ -263,7 +263,6 @@ export const MainLayout: React.FC = () => {
             onClick={() => setIsLogoutModalOpen(true)}
             className="logout-btn"
           >
-            <LogOut size={18} />
             <span>Cerrar Sesión</span>
           </button>
         </div>
