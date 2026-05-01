@@ -5,7 +5,6 @@ import {
   fetchSessionSiiauSnapshot,
   fetchSnapshotMe,
   SIIAU_LAST_NIP_STORAGE_KEY,
-  type SiiauSnapshot,
 } from '../features/siiau/api/siiau';
 import { useAuth } from './useAuth';
 import {
@@ -27,42 +26,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
-}
-
-function transformSnapshotToRecords(snapshot: SiiauSnapshot): AcademicOfferRecord[] {
-  const records: AcademicOfferRecord[] = [];
-
-  for (const course of snapshot.courses || []) {
-    if (!course.sessions || course.sessions.length === 0) {
-      records.push({
-        NRC: parseInt(course.nrc || '0', 10),
-        Clave: course.clave || '',
-        Materia: course.materia || '',
-        CR: course.creditos || 0,
-        Hora: '',
-        Dias: '',
-        Edificio: '',
-        Aula: '',
-        Profesor: course.profesor || '',
-      });
-    } else {
-      for (const session of course.sessions) {
-        records.push({
-          NRC: parseInt(course.nrc || '0', 10),
-          Clave: course.clave || '',
-          Materia: course.materia || '',
-          CR: course.creditos || 0,
-          Hora: session.hora || '',
-          Dias: session.dias || '',
-          Edificio: session.edif || '',
-          Aula: session.aula || '',
-          Profesor: session.profesor || course.profesor || '',
-        });
-      }
-    }
-  }
-
-  return records;
 }
 
 export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
@@ -200,10 +163,9 @@ export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
             }
 
             const now = new Date().toISOString();
-            const transformed = transformSnapshotToRecords(directSnapshot);
             setState({
               status: 'ready',
-              offerRecords: nextOfferRecords ?? transformed,
+              offerRecords: nextOfferRecords ?? state.offerRecords,
               snapshot: directSnapshot,
               error: null,
               requestedAt: lastKnownRequestedAt ?? now,
@@ -253,10 +215,9 @@ export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
             lastKnownUpdatedAt = next.updatedAt;
 
             if (next.status === 'ready' && next.snapshot) {
-              const transformed = transformSnapshotToRecords(next.snapshot);
               setState({
                 status: 'ready',
-                offerRecords: nextOfferRecords ?? transformed,
+                offerRecords: nextOfferRecords ?? state.offerRecords,
                 snapshot: next.snapshot,
                 error: null,
                 requestedAt: next.requestedAt,
