@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Book, Clock, UserSquare, MapPin, ChevronLeft, ChevronRight, Hash, Building2, Calendar, X, Laptop, Users, MonitorSmartphone, RefreshCw } from 'lucide-react';
+import mockData from '../data/mockSubjects.json';
 import { useAuth } from '../context/useAuth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
 import type { AcademicOfferRecord } from '../context/AcademicOfferContextStore';
@@ -164,13 +165,18 @@ export const SubjectsView: React.FC = () => {
 
   useEffect(() => {
     if (!token) return;
+    if (offerState.offerRecords.length > 0 && offerState.status === 'ready') return;
     if (offerState.status === 'loading') return;
-    if (offerState.status === 'ready' && offerState.offerRecords.length > 0) return;
-    void loadAcademicOffer(token);
+    void loadAcademicOffer(token, {
+      offerRecords: mockData as AcademicOfferRecord[],
+    });
   }, [token, offerState.offerRecords.length, offerState.status, loadAcademicOffer]);
 
   const sourceSubjects = useMemo(() => {
-    return offerState.offerRecords as Subject[];
+    if (offerState.offerRecords.length > 0) {
+      return offerState.offerRecords as Subject[];
+    }
+    return mockData as Subject[];
   }, [offerState.offerRecords]);
 
   const filteredSubjects = useMemo(() => {
