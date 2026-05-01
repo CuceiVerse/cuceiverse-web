@@ -3,7 +3,6 @@ import { ChevronDown, Flag, MapPin } from 'lucide-react';
 
 import { useAuth } from '../../../context/useAuth';
 import { fetchModularMapLayout } from '../api/mapaAdmin';
-import campusModularSeed from '../data/campusModularSeed.json';
 import { cellKey, expandBlockCells } from '../editor/buildingAdjacency';
 import { gridAStarPath, snapToPathTile } from '../lib/gridAStar';
 import { loadRuntimeSeed } from '../lib/runtimeSeed';
@@ -37,6 +36,22 @@ type VisibilityFilters = {
   services: boolean;
   infrastructure: boolean;
   decoration: boolean;
+};
+
+const EMPTY_BASE_SEED: ModularMapSeed = {
+  schemaVersion: 'modular-map@1',
+  mapId: 'cucei-main-campus',
+  grid: {
+    columns: 1,
+    rows: 1,
+    tileWidth: 1,
+    tileHeight: 1,
+    origin: { x: 0, y: 0 },
+  },
+  areaCells: [{ x: 0, y: 0 }],
+  buildings: [],
+  paths: [],
+  props: [],
 };
 
 const SERVICE_PROP_KINDS = new Set<PropKind>(['poi', 'bathroom', 'trash']);
@@ -141,7 +156,6 @@ function normalizeQuery(value: string): string {
     .trim();
 }
 
-const bundledSeed = campusModularSeed as ModularMapSeed;
 const VIEW_MODE_STORAGE_KEY = 'cuceiverse.map.viewMode';
 
 function getInitialViewMode(): 'isometric' | '2d' {
@@ -369,9 +383,10 @@ function toViewerState(
 }
 
 export function ModularReadOnlyMap() {
-  const fallbackSeed = useMemo(() => loadRuntimeSeed() ?? bundledSeed, []);
+  const [baseSeed, setBaseSeed] = useState<ModularMapSeed>(() => loadRuntimeSeed() ?? EMPTY_BASE_SEED);
+  const [seedReady, setSeedReady] = useState(() => loadRuntimeSeed() != null);
   const { token } = useAuth();
-  const [layout, setLayout] = useState<ModularMapSeed>(fallbackSeed);
+  const [layout, setLayout] = useState<ModularMapSeed>(baseSeed);
   const [status, setStatus] = useState('Cargando mapa modular...');
   const [isSyncing, setIsSyncing] = useState(true);
   const [canvasReady, setCanvasReady] = useState(false);
@@ -399,8 +414,30 @@ export function ModularReadOnlyMap() {
   usePerfViewLoadEnd({
     path: '/home',
     label: 'Mapa',
-    isLoading: isSyncing || !canvasReady,
+    isLoading: !seedReady || isSyncing || !canvasReady,
   });
+
+  useEffect(() => {
+    if (seedReady) {
+      return;
+    }
+
+    let cancelled = false;
+    void import('../data/campusModularSeed.json').then((module) => {
+      if (cancelled) {
+        return;
+      }
+
+      const nextSeed = module.default as ModularMapSeed;
+      setBaseSeed(nextSeed);
+      setLayout(nextSeed);
+      setSeedReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seedReady]);
 
   const statusLabel = useMemo(() => {
     const normalized = status.toLowerCase();
@@ -411,11 +448,15 @@ export function ModularReadOnlyMap() {
   }, [status]);
 
   useEffect(() => {
+    if (!seedReady) {
+      return;
+    }
+
     let cancelled = false;
     setStatus('Cargando mapa modular...');
     setIsSyncing(true);
 
-    fetchModularMapLayout(token, fallbackSeed.mapId)
+    fetchModularMapLayout(token, baseSeed.mapId)
       .then((response) => {
         if (cancelled) {
           return;
@@ -432,7 +473,7 @@ export function ModularReadOnlyMap() {
         if (cancelled) {
           return;
         }
-        setLayout(fallbackSeed);
+        setLayout(baseSeed);
         setStatus('No se pudo cargar layout remoto, usando seed local.');
       })
       .finally(() => {
@@ -444,7 +485,7 @@ export function ModularReadOnlyMap() {
     return () => {
       cancelled = true;
     };
-  }, [token, fallbackSeed]);
+  }, [token, baseSeed, seedReady]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {

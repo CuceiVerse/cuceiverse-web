@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import {
@@ -15,11 +15,16 @@ import {
 } from 'lucide-react';
 import { getMyProfile, type AuthUser } from '../features/auth/api/auth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
-import { CampusAssistantWidget } from '../features/assistant/components/CampusAssistantWidget';
 import { ConfirmModal } from './ConfirmModal';
 import { resolveAvatarImage } from '../lib/avatarImage';
 import { setPerfMark } from '../lib/perfMarks';
 import './MainLayout.css';
+
+const CampusAssistantWidget = lazy(() =>
+  import('../features/assistant/components/CampusAssistantWidget').then((module) => ({
+    default: module.CampusAssistantWidget,
+  })),
+);
 
 export const MainLayout: React.FC = () => {
   const { logout, isAdmin, token } = useAuth();
@@ -256,7 +261,11 @@ export const MainLayout: React.FC = () => {
         <Outlet />
       </main>
 
-      {location.pathname !== '/tramites' && <CampusAssistantWidget />}
+      {location.pathname !== '/tramites' ? (
+        <Suspense fallback={null}>
+          <CampusAssistantWidget />
+        </Suspense>
+      ) : null}
 
       <ConfirmModal
         isOpen={isLogoutModalOpen}

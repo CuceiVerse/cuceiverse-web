@@ -2,10 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Book, Clock, UserSquare, MapPin, ChevronLeft, ChevronRight, Hash, Building2, Calendar, X, Laptop, Users, MonitorSmartphone, RefreshCw } from 'lucide-react';
-import mockData from '../data/mockSubjects.json';
 import { useAuth } from '../context/useAuth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
-import type { AcademicOfferRecord } from '../context/AcademicOfferContextStore';
 import { usePerfViewLoadEnd } from '../lib/usePerfViewLoadEnd';
 import './SubjectsView.css';
 
@@ -163,18 +161,13 @@ export const SubjectsView: React.FC = () => {
 
   useEffect(() => {
     if (!token) return;
-    if (offerState.offerRecords.length > 0 && offerState.status === 'ready') return;
     if (offerState.status === 'loading') return;
-    void loadAcademicOffer(token, {
-      offerRecords: mockData as AcademicOfferRecord[],
-    });
+    if (offerState.status === 'ready' && offerState.offerRecords.length > 0) return;
+    void loadAcademicOffer(token);
   }, [token, offerState.offerRecords.length, offerState.status, loadAcademicOffer]);
 
   const sourceSubjects = useMemo(() => {
-    if (offerState.offerRecords.length > 0) {
-      return offerState.offerRecords as Subject[];
-    }
-    return mockData as Subject[];
+    return offerState.offerRecords as Subject[];
   }, [offerState.offerRecords]);
 
   const filteredSubjects = useMemo(() => {
@@ -208,6 +201,7 @@ export const SubjectsView: React.FC = () => {
   };
 
   const canShowSubjects = sourceSubjects.length > 0;
+  const isInitialLoading = offerState.status !== 'ready' && sourceSubjects.length === 0;
 
   return (
     <>
@@ -253,7 +247,13 @@ export const SubjectsView: React.FC = () => {
           </div>
 
           <div className="subjects-grid">
-            {canShowSubjects && currentSubjects.length > 0 ? (
+            {isInitialLoading ? (
+              <div className="no-results glass-panel">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-cyan-500/20 border-t-cyan-400" />
+                <h3>Sincronizando oferta</h3>
+                <p>Estamos cargando las materias reales desde SIIAU.</p>
+              </div>
+            ) : canShowSubjects && currentSubjects.length > 0 ? (
               currentSubjects.map((subject, index) => {
                 const modalidad = getModalidad(subject.Edificio);
 
