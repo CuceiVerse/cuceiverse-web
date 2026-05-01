@@ -281,6 +281,13 @@ function getAvatarPose(
   }
 }
 
+function isTouchLikeEnvironment(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches;
+}
+
 function drawGridTile(
   graphics: Graphics,
   cell: GridCell,
@@ -623,6 +630,7 @@ export function ModularMapCanvas({
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [viewportSize, setViewportSize] = useState({ width: 1400, height: 820 });
+  const [isTouchLike, setIsTouchLike] = useState(() => isTouchLikeEnvironment());
 
   const didAutoFitRef = useRef(false);
   const lastAutoFitModeRef = useRef<NonNullable<Props['viewMode']> | undefined>(undefined);
@@ -669,6 +677,31 @@ export function ModularMapCanvas({
       ? get2DCampusBounds(editorState.grid)
       : getIsoCampusBounds(editorState.grid);
   }, [viewMode, editorState.grid]);
+
+  const resetCamera = useCallback(() => {
+    const nextCamera = fitCameraToBounds(viewportSize, campusBounds);
+    pendingCameraRef.current = null;
+    setCamera(nextCamera);
+    applyCameraTransform(nextCamera);
+  }, [applyCameraTransform, campusBounds, viewportSize]);
+
+  const zoomCamera = useCallback(
+    (factor: number) => {
+      scheduleCameraUpdate((current) => {
+        const nextScale = clamp(current.scale * factor, MIN_ZOOM, MAX_ZOOM);
+        const centerX = viewportSize.width / 2;
+        const centerY = viewportSize.height / 2;
+        const worldX = (centerX - current.x) / current.scale;
+        const worldY = (centerY - current.y) / current.scale;
+        return {
+          x: centerX - worldX * nextScale,
+          y: centerY - worldY * nextScale,
+          scale: nextScale,
+        };
+      });
+    },
+    [scheduleCameraUpdate, viewportSize.height, viewportSize.width],
+  );
 
   useEffect(() => {
     applyCameraTransform(camera);
@@ -761,6 +794,33 @@ export function ModularMapCanvas({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const media = window.matchMedia('(pointer: coarse)');
+    const update = () => setIsTouchLike(media.matches || window.innerWidth <= 900);
+
+    update();
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', update);
+      window.addEventListener('resize', update);
+      return () => {
+        media.removeEventListener('change', update);
+        window.removeEventListener('resize', update);
+      };
+    }
+
+    media.addListener(update);
+    window.addEventListener('resize', update);
+    return () => {
+      media.removeListener(update);
+      window.removeEventListener('resize', update);
     };
   }, []);
 
@@ -1849,6 +1909,41 @@ export function ModularMapCanvas({
       onDragOver={handleDragOver}
       onContextMenu={(event) => event.preventDefault()}
     >
+      {isTouchLike ? (
+        <div className="pointer-events-none absolute inset-x-4 bottom-4 z-30 flex flex-col items-end gap-3 sm:hidden">
+          <div className="pointer-events-auto rounded-2xl border border-slate-700/70 bg-slate-950/90 px-3 py-2 text-[11px] font-medium text-slate-200 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
+            <div className="font-semibold uppercase tracking-widest text-cyan-300">Controles táctiles</div>
+            <div>Arrastra con un dedo para mover.</div>
+            <div>Pellizca para zoom. Usa +/- o el botón central para recentrar.</div>
+          </div>
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-slate-700/70 bg-slate-950/95 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
+            <button
+              type="button"
+              onClick={() => zoomCamera(0.85)}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white active:scale-95"
+              aria-label="Acercar mapa"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={resetCamera}
+              className="flex h-11 min-w-24 items-center justify-center rounded-full border border-cyan-500/40 bg-cyan-500 px-4 text-[11px] font-black uppercase tracking-widest text-cyan-950 active:scale-95"
+              aria-label="Recentrar mapa"
+            >
+              Centro
+            </button>
+            <button
+              type="button"
+              onClick={() => zoomCamera(1 / 0.85)}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white active:scale-95"
+              aria-label="Alejar mapa"
+            >
+              −
+            </button>
+          </div>
+        </div>
+      ) : null}
       {devUnderlayTexture ? (
         <div className="absolute right-3 top-36 z-20 rounded-xl border border-slate-700/60 bg-[#030610]/80 px-3 py-2 text-xs text-slate-200 backdrop-blur">
           <div className="flex items-center justify-between gap-2">

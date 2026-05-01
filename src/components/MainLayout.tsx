@@ -12,6 +12,8 @@ import {
   CalendarDays,
   Trophy,
   FileText,
+  Menu,
+  X,
 } from 'lucide-react';
 import { getMyProfile, type AuthUser } from '../features/auth/api/auth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
@@ -31,9 +33,11 @@ export const MainLayout: React.FC = () => {
   const { state: offerState, resetAcademicOffer } = useAcademicOffer();
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navMenuOpen, setNavMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const location = useLocation();
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const navDrawerRef = useRef<HTMLDivElement | null>(null);
 
   const markNavStart = (path: string) => {
     if (location.pathname === path) return;
@@ -67,11 +71,11 @@ export const MainLayout: React.FC = () => {
 
   useEffect(() => {
     const onClickOutside = (event: MouseEvent) => {
-      if (!menuRef.current) {
-        return;
-      }
-      if (!menuRef.current.contains(event.target as Node)) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setMenuOpen(false);
+      }
+      if (navDrawerRef.current && !navDrawerRef.current.contains(event.target as Node)) {
+        setNavMenuOpen(false);
       }
     };
 
@@ -102,6 +106,15 @@ export const MainLayout: React.FC = () => {
           <div className="nav-logo"></div>
           <h2>CuceiVerse</h2>
         </div>
+
+        <button
+          className="nav-hamburger hidden md:hidden"
+          onClick={() => setNavMenuOpen((prev) => !prev)}
+          aria-expanded={navMenuOpen}
+          aria-label="Toggle navigation menu"
+        >
+          {navMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
 
         <div className="nav-links">
           <NavLink
@@ -255,6 +268,99 @@ export const MainLayout: React.FC = () => {
           </button>
         </div>
       </nav>
+
+      {/* Mobile Navigation Drawer */}
+      {navMenuOpen && (
+        <div
+          className="nav-drawer-overlay"
+          onClick={() => setNavMenuOpen(false)}
+        />
+      )}
+      <div
+        className={`nav-drawer glass-panel ${navMenuOpen ? 'open' : ''}`}
+        ref={navDrawerRef}
+      >
+        <NavLink
+          to="/home"
+          className={({ isActive }) => `drawer-link ${isActive ? 'active' : ''}`}
+          end
+          onClick={() => {
+            markNavStart('/home');
+            setNavMenuOpen(false);
+          }}
+        >
+          <Map size={20} />
+          <span>Mapa</span>
+        </NavLink>
+        <NavLink
+          to="/subjects"
+          className={({ isActive }) => `drawer-link ${isActive ? 'active' : ''}`}
+          onClick={() => {
+            markNavStart('/subjects');
+            setNavMenuOpen(false);
+          }}
+        >
+          <BookOpen size={20} />
+          <span>Oferta Académica</span>
+        </NavLink>
+        <NavLink
+          to="/schedule"
+          className={({ isActive }) => `drawer-link ${isActive ? 'active' : ''}`}
+          onClick={() => {
+            markNavStart('/schedule');
+            setNavMenuOpen(false);
+          }}
+        >
+          <CalendarDays size={20} />
+          <span>Horario</span>
+        </NavLink>
+        <NavLink
+          to="/tramites"
+          className={({ isActive }) => `drawer-link ${isActive ? 'active' : ''}`}
+          onClick={() => {
+            markNavStart('/tramites');
+            setNavMenuOpen(false);
+          }}
+        >
+          <FileText size={20} />
+          <span>Trámites</span>
+        </NavLink>
+        <NavLink
+          to="/profile-hud"
+          className={({ isActive }) => `drawer-link ${isActive ? 'active' : ''}`}
+          onClick={() => {
+            markNavStart('/profile-hud');
+            setNavMenuOpen(false);
+          }}
+        >
+          <Trophy size={20} />
+          <span>Perfil RPG</span>
+        </NavLink>
+        <NavLink
+          to="/avatars"
+          className={({ isActive }) => `drawer-link ${isActive ? 'active' : ''}`}
+          onClick={() => {
+            markNavStart('/avatars');
+            setNavMenuOpen(false);
+          }}
+        >
+          <User size={20} />
+          <span>Habbo Avatar</span>
+        </NavLink>
+        {isAdmin ? (
+          <NavLink
+            to="/admin/mapa"
+            className={({ isActive }) => `drawer-link ${isActive ? 'active' : ''}`}
+            onClick={() => {
+              markNavStart('/admin/mapa');
+              setNavMenuOpen(false);
+            }}
+          >
+            <Settings size={20} />
+            <span>Editor Mapa</span>
+          </NavLink>
+        ) : null}
+      </div>
 
       {/* Dynamic Content Area */}
       <main className="layout-content flex-1 relative w-full overflow-hidden">
