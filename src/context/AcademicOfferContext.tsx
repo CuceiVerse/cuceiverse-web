@@ -3,7 +3,8 @@ import type { ReactNode } from 'react';
 
 import {
   fetchSessionSiiauSnapshot,
-  fetchGlobalAcademicOffer,
+  fetchSnapshotMe,
+  SIIAU_LAST_NIP_STORAGE_KEY,
   type SiiauSnapshot,
 } from '../features/siiau/api/siiau';
 import { useAuth } from './useAuth';
@@ -133,7 +134,7 @@ export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
 
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
-          console.log('[OFFER][WEB] loadAcademicOffer start', {
+          console.log('[SIIAU][WEB] loadAcademicOffer start', {
             runSessionVersion,
             currentSessionVersion: sessionVersionRef.current,
             force,
@@ -144,7 +145,7 @@ export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
         if (isStale()) {
           if (import.meta.env.DEV) {
             // eslint-disable-next-line no-console
-            console.log('[OFFER][WEB] loadAcademicOffer abort stale', {
+            console.log('[SIIAU][WEB] loadAcademicOffer abort stale antes de polling', {
               runSessionVersion,
               currentSessionVersion: sessionVersionRef.current,
             });
@@ -160,79 +161,131 @@ export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
 
         let lastKnownRequestedAt: string | null = null;
         let lastKnownUpdatedAt: string | null = null;
-        let reloadInitiated = false;
+        let attemptedIdleKickoff = false;
 
-        // Intenta cargar oferta global de /offer/reload/status
+        const tryDirectSnapshotFallback = async (reason: string): Promise<boolean> => {
+          const nip = sessionStorage.getItem(SIIAU_LAST_NIP_STORAGE_KEY)?.trim() ?? '';
+          if (!nip) {
+            if (import.meta.env.DEV) {
+              // eslint-disable-next-line no-console
+              console.log('[SIIAU][WEB] fallback snapshot/me omitido: no hay NIP en sessionStorage', {
+                reason,
+              });
+            }
+            return false;
+          }
+
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.log('[SIIAU][WEB] fallback snapshot/me ejecutando', {
+              reason,
+              runSessionVersion,
+              requestedAt: lastKnownRequestedAt,
+              updatedAt: lastKnownUpdatedAt,
+            });
+          }
+
+          try {
+            const directSnapshot = await fetchSnapshotMe(token, nip);
+            if (isStale()) {
+              if (import.meta.env.DEV) {
+                // eslint-disable-next-line no-console
+                console.log('[SIIAU][WEB] fallback snapshot/me descartado por stale session', {
+                  reason,
+                  runSessionVersion,
+                  currentSessionVersion: sessionVersionRef.current,
+                });
+              }
+              return true;
+            }
+
+            const now = new Date().toISOString();
+            const transformed = transformSnapshotToRecords(directSnapshot);
+            setState({
+              status: 'ready',
+              offerRecords: nextOfferRecords ?? transformed,
+              snapshot: directSnapshot,
+              error: null,
+              requestedAt: lastKnownRequestedAt ?? now,
+              updatedAt: now,
+            });
+            return true;
+          } catch (directError) {
+            if (import.meta.env.DEV) {
+              // eslint-disable-next-line no-console
+              console.log('[SIIAU][WEB] fallback snapshot/me fallo', {
+                reason,
+                message:
+                  directError instanceof Error
+                    ? directError.message
+                    : 'No fue posible consultar snapshot/me',
+              });
+            }
+            return false;
+          }
+        };
+
         for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
           try {
             if (import.meta.env.DEV) {
               // eslint-disable-next-line no-console
-              console.log('[OFFER][WEB] checking global offer status', {
+              console.log('[SIIAU][WEB] polling attempt', {
                 attempt,
                 runSessionVersion,
-                reloadInitiated,
+                currentSessionVersion: sessionVersionRef.current,
               });
             }
 
-            const offerStatus = await fetchGlobalAcademicOffer(token);
-
+            const next = await fetchSessionSiiauSnapshot(token);
             if (isStale()) {
-              return;
-            }
-
-            // Si ya hay resultado, usar esos datos
-            if (offerStatus.hasResult && offerStatus.materias && offerStatus.materias.length > 0) {
-              const now = new Date().toISOString();
-              setState({
-                status: 'ready',
-                offerRecords: nextOfferRecords ?? offerStatus.materias,
-                snapshot: null,
-                error: null,
-                requestedAt: lastKnownRequestedAt ?? now,
-                updatedAt: now,
-              });
-              return;
-            }
-
-            // Si está corriendo, esperar
-            if (offerStatus.running) {
-              await sleep(POLL_INTERVAL_MS);
-              continue;
-            }
-
-            // Si no hay resultado y no está corriendo, iniciar reload
-            if (!offerStatus.hasResult && !reloadInitiated) {
-              reloadInitiated = true;
               if (import.meta.env.DEV) {
                 // eslint-disable-next-line no-console
-                console.log('[OFFER][WEB] initiating offer reload', { attempt });
-              }
-
-              const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
-              try {
-                await fetch(`${API_BASE}/offer/reload`, {
-                  method: 'POST',
-                  headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({}),
+                console.log('[SIIAU][WEB] respuesta descartada por stale session', {
+                  attempt,
+                  runSessionVersion,
+                  currentSessionVersion: sessionVersionRef.current,
                 });
-              } catch (reloadErr) {
-                if (import.meta.env.DEV) {
-                  // eslint-disable-next-line no-console
-                  console.log('[OFFER][WEB] reload POST failed', {
-                    message: reloadErr instanceof Error ? reloadErr.message : 'unknown',
-                  });
-                }
               }
-
-              await sleep(POLL_INTERVAL_MS);
-              continue;
+              return;
             }
 
-            if (offerStatus.lastError) {
-              throw new Error(offerStatus.lastError);
+            lastKnownRequestedAt = next.requestedAt;
+            lastKnownUpdatedAt = next.updatedAt;
+
+            if (next.status === 'ready' && next.snapshot) {
+              const transformed = transformSnapshotToRecords(next.snapshot);
+              setState({
+                status: 'ready',
+                offerRecords: nextOfferRecords ?? transformed,
+                snapshot: next.snapshot,
+                error: null,
+                requestedAt: next.requestedAt,
+                updatedAt: next.updatedAt,
+              });
+              return;
+            }
+
+            if (next.status === 'idle' && !attemptedIdleKickoff) {
+              attemptedIdleKickoff = true;
+              const recovered = await tryDirectSnapshotFallback('status-idle');
+              if (recovered) {
+                return;
+              }
+            }
+
+            if (next.status === 'error') {
+              const recovered = await tryDirectSnapshotFallback('status-error');
+              if (recovered) return;
+
+              setState({
+                status: 'error',
+                offerRecords: nextOfferRecords ?? state.offerRecords,
+                snapshot: null,
+                error: next.error ?? 'No fue posible cargar la oferta académica.',
+                requestedAt: next.requestedAt,
+                updatedAt: next.updatedAt,
+              });
+              return;
             }
 
             await sleep(POLL_INTERVAL_MS);
@@ -241,57 +294,36 @@ export const AcademicOfferProvider: React.FC<{ children: ReactNode }> = ({
               return;
             }
 
-            if (import.meta.env.DEV) {
-              // eslint-disable-next-line no-console
-              console.log('[OFFER][WEB] global offer attempt failed', {
-                attempt,
-                message: error instanceof Error ? error.message : 'unknown',
-              });
-            }
-
-            // Continuar intentando
-            await sleep(POLL_INTERVAL_MS);
-          }
-        }
-
-        // Si llega aquí, fallback al snapshot del estudiante
-        if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
-          console.log('[OFFER][WEB] global offer polling exhausted, trying student snapshot fallback', {
-            runSessionVersion,
-          });
-        }
-
-        try {
-          const snapshotStatus = await fetchSessionSiiauSnapshot(token);
-          if (isStale()) return;
-
-          if (snapshotStatus.status === 'ready' && snapshotStatus.snapshot) {
-            const transformed = transformSnapshotToRecords(snapshotStatus.snapshot);
             setState({
-              status: 'ready',
-              offerRecords: nextOfferRecords ?? transformed,
-              snapshot: snapshotStatus.snapshot,
-              error: null,
-              requestedAt: snapshotStatus.requestedAt,
-              updatedAt: snapshotStatus.updatedAt,
+              status: 'error',
+              offerRecords: nextOfferRecords ?? state.offerRecords,
+              snapshot: null,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : 'No fue posible cargar la oferta académica.',
+              requestedAt: lastKnownRequestedAt,
+              updatedAt: lastKnownUpdatedAt,
             });
             return;
           }
-        } catch (fallbackErr) {
-          if (import.meta.env.DEV) {
-            // eslint-disable-next-line no-console
-            console.log('[OFFER][WEB] snapshot fallback failed', {
-              message: fallbackErr instanceof Error ? fallbackErr.message : 'unknown',
-            });
-          }
+        }
+
+        if (isStale()) {
+          return;
+        }
+
+        const recoveredAfterTimeout = await tryDirectSnapshotFallback('polling-timeout');
+        if (recoveredAfterTimeout) {
+          return;
         }
 
         setState({
           status: 'error',
           offerRecords: nextOfferRecords ?? state.offerRecords,
           snapshot: null,
-          error: 'No fue posible cargar la oferta académica. Intenta nuevamente.',
+          error:
+            'La carga de oferta académica tardó demasiado. Intenta nuevamente desde Oferta Académica.',
           requestedAt: lastKnownRequestedAt,
           updatedAt: lastKnownUpdatedAt,
         });
