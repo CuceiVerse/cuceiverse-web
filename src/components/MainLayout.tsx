@@ -2,7 +2,6 @@ import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'rea
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import {
-  LogOut,
   Map,
   BookOpen,
   User,
