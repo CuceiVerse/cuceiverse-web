@@ -626,6 +626,8 @@ export function ModularMapCanvas({
     initialWorldX: number;
     initialWorldY: number;
   } | null>(null);
+  const touchCameraTargetRef = useRef<EditorCamera | null>(null);
+  const touchCameraFrameRef = useRef(0);
 
   const [camera, setCamera] = useState<EditorCamera>(() => ({
     ...fitCameraToBounds(
@@ -708,6 +710,56 @@ export function ModularMapCanvas({
       });
     },
     [scheduleCameraUpdate, viewportSize.height, viewportSize.width],
+  );
+
+  const smoothTouchCamera = useCallback(
+    (nextCamera: EditorCamera) => {
+      touchCameraTargetRef.current = nextCamera;
+
+      if (touchCameraFrameRef.current) {
+        return;
+      }
+
+      const tick = () => {
+        const target = touchCameraTargetRef.current;
+        if (!target) {
+          touchCameraFrameRef.current = 0;
+          return;
+        }
+
+        const current = cameraRef.current ?? camera;
+        const deltaX = target.x - current.x;
+        const deltaY = target.y - current.y;
+        const deltaScale = target.scale - current.scale;
+
+        const nextCamera = {
+          x: current.x + deltaX * 0.28,
+          y: current.y + deltaY * 0.28,
+          scale: current.scale + deltaScale * 0.22,
+        };
+
+        const closeEnough =
+          Math.abs(deltaX) < 0.15 &&
+          Math.abs(deltaY) < 0.15 &&
+          Math.abs(deltaScale) < 0.0015;
+
+        applyCameraTransform(nextCamera);
+        setCamera(nextCamera);
+
+        if (closeEnough) {
+          applyCameraTransform(target);
+          setCamera(target);
+          touchCameraTargetRef.current = null;
+          touchCameraFrameRef.current = 0;
+          return;
+        }
+
+        touchCameraFrameRef.current = requestAnimationFrame(tick);
+      };
+
+      touchCameraFrameRef.current = requestAnimationFrame(tick);
+    },
+    [applyCameraTransform, camera],
   );
 
   useEffect(() => {
@@ -929,6 +981,9 @@ export function ModularMapCanvas({
     return () => {
       if (cameraFrameRef.current) {
         cancelAnimationFrame(cameraFrameRef.current);
+      }
+      if (touchCameraFrameRef.current) {
+        cancelAnimationFrame(touchCameraFrameRef.current);
       }
     };
   }, []);
@@ -1207,7 +1262,7 @@ export function ModularMapCanvas({
         const rawScale = pinch.initialScale * (distance / pinch.initialDistance);
         const nextScale = clamp(rawScale, MIN_ZOOM, MAX_ZOOM);
 
-        scheduleCameraUpdate({
+        smoothTouchCamera({
           x: localX - pinch.initialWorldX * nextScale,
           y: localY - pinch.initialWorldY * nextScale,
           scale: nextScale,
@@ -1218,11 +1273,11 @@ export function ModularMapCanvas({
       // Pan con 1 dedo
       const pan = panRef.current;
       if (pan && editorState.activeTool === 'pan' && isPanning) {
-        scheduleCameraUpdate((current) => ({
-          ...current,
+        smoothTouchCamera({
           x: pan.cameraX + (event.clientX - pan.pointerX),
           y: pan.cameraY + (event.clientY - pan.pointerY),
-        }));
+          scale: cameraRef.current?.scale ?? camera.scale,
+        });
         return;
       }
 
@@ -1267,6 +1322,7 @@ export function ModularMapCanvas({
     propDragRef.current = null;
     setIsPanning(false);
     panRef.current = null;
+    touchCameraTargetRef.current = null;
   };
 
   const finishPointerInteraction = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -1939,17 +1995,17 @@ export function ModularMapCanvas({
       onContextMenu={(event) => event.preventDefault()}
     >
       {isTouchLike ? (
-        <div className="pointer-events-none absolute inset-x-4 bottom-4 z-30 flex flex-col items-end gap-3 sm:hidden">
+        <div className="pointer-events-none absolute inset-x-4 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-30 flex flex-col items-end gap-3 sm:hidden">
           <div className="pointer-events-auto rounded-2xl border border-slate-700/70 bg-slate-950/90 px-3 py-2 text-[11px] font-medium text-slate-200 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
             <div className="font-semibold uppercase tracking-widest text-cyan-300">Controles táctiles</div>
             <div>Arrastra con un dedo para mover.</div>
-            <div>Pellizca para zoom. Usa +/- o el botón central para recentrar.</div>
+            <div>Pellizca para zoom. Usa +/- o el botón centro para recentrar.</div>
           </div>
           <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-slate-700/70 bg-slate-950/95 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
             <button
               type="button"
               onClick={() => zoomCamera(0.85)}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white active:scale-95"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white transition-transform duration-150 active:scale-95"
               aria-label="Acercar mapa"
             >
               +
@@ -1957,7 +2013,7 @@ export function ModularMapCanvas({
             <button
               type="button"
               onClick={resetCamera}
-              className="flex h-11 min-w-24 items-center justify-center rounded-full border border-cyan-500/40 bg-cyan-500 px-4 text-[11px] font-black uppercase tracking-widest text-cyan-950 active:scale-95"
+              className="flex h-11 min-w-24 items-center justify-center rounded-full border border-cyan-500/40 bg-cyan-500 px-4 text-[11px] font-black uppercase tracking-widest text-cyan-950 shadow-[0_0_18px_rgba(34,211,238,0.14)] transition-transform duration-150 active:scale-95"
               aria-label="Recentrar mapa"
             >
               Centro
@@ -1965,7 +2021,7 @@ export function ModularMapCanvas({
             <button
               type="button"
               onClick={() => zoomCamera(1 / 0.85)}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white active:scale-95"
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white transition-transform duration-150 active:scale-95"
               aria-label="Alejar mapa"
             >
               −
