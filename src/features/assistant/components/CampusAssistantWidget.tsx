@@ -1,39 +1,62 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bot, MessageCircle, Send, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { Bot, MessageCircle, Send, X } from "lucide-react";
 
-import { useAuth } from '../../../context/useAuth';
+import { useAuth } from "../../../context/useAuth";
 import {
   sendAssistantMessage,
   type AssistantContext,
   type AssistantMessage,
   type AssistantRouteAction,
-} from '../api/assistant';
+} from "../api/assistant";
 
 type ChatEntry = {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
 };
 
 const EMPTY_CONTEXT: AssistantContext = {};
 const DEFAULT_SUGGESTIONS = [
-  '¿Cómo llego a Control Escolar?',
-  '¿Qué clases tengo hoy?',
-  '¿Cuál es mi promedio?',
+  "¿Cómo llego a Control Escolar?",
+  "¿Qué clases tengo hoy?",
+  "¿Cuál es mi promedio?",
 ];
 const DEFAULT_WELCOME_ENTRY: ChatEntry = {
-  id: 'welcome',
-  role: 'assistant',
+  id: "welcome",
+  role: "assistant",
   content:
-    'Hola, soy tu asistente CUCEIverse. Puedo ayudarte con rutas del campus, horario, materias y dudas de la plataforma.',
+    "Hola, soy tu asistente CUCEIverse. Puedo ayudarte con rutas del campus, horario, materias y dudas de la plataforma.",
 };
+
+function getClarificationLabel(
+  type?: AssistantContext["pendingClarificationType"],
+) {
+  if (type === "missing_origin") return "Ubicacion requerida";
+  if (type === "ambiguous_destination") return "Elige destino";
+  if (type === "ambiguous_subject") return "Elige opcion";
+  if (type === "missing_reference") return "Referencia pendiente";
+  return null;
+}
+
+function getInputPlaceholder(context: AssistantContext) {
+  if (context.pendingClarificationType === "missing_origin") {
+    return "Escribe donde estas...";
+  }
+  if (context.pendingClarificationType === "ambiguous_destination") {
+    return "Elige o escribe el destino correcto...";
+  }
+  if (context.pendingClarificationType === "ambiguous_subject") {
+    return "Elige o precisa la opcion...";
+  }
+  return "Pregunta por rutas, clases o profesores...";
+}
 
 function MarkdownRenderer({ text }: { text: string }) {
   const navigate = useNavigate();
 
   const handleClick = (e: MouseEvent<HTMLAnchorElement>, url: string) => {
-    if (url.startsWith('/')) {
+    if (url.startsWith("/")) {
       e.preventDefault();
       navigate(url);
     }
@@ -46,27 +69,32 @@ function MarkdownRenderer({ text }: { text: string }) {
 
   while ((match = linkRegex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push({ type: 'text', content: text.substring(lastIndex, match.index) });
+      parts.push({
+        type: "text",
+        content: text.substring(lastIndex, match.index),
+      });
     }
-    parts.push({ type: 'link', label: match[1], url: match[2] });
+    parts.push({ type: "link", label: match[1], url: match[2] });
     lastIndex = linkRegex.lastIndex;
   }
 
   if (lastIndex < text.length) {
-    parts.push({ type: 'text', content: text.substring(lastIndex) });
+    parts.push({ type: "text", content: text.substring(lastIndex) });
   }
 
   return (
     <span className="leading-relaxed">
       {parts.map((part, i) => {
-        if (part.type === 'link') {
+        if (part.type === "link") {
           return (
             <a
               key={i}
               href={part.url}
               onClick={(e) => handleClick(e, part.url as string)}
-              target={part.url?.startsWith('/') ? undefined : '_blank'}
-              rel={part.url?.startsWith('/') ? undefined : 'noopener noreferrer'}
+              target={part.url?.startsWith("/") ? undefined : "_blank"}
+              rel={
+                part.url?.startsWith("/") ? undefined : "noopener noreferrer"
+              }
               className="text-emerald-400 font-medium underline hover:text-emerald-300 transition-colors inline-block mx-0.5"
             >
               {part.label}
@@ -78,18 +106,22 @@ function MarkdownRenderer({ text }: { text: string }) {
         const content = part.content as string;
 
         // Handle double newlines as paragraphs first
-        const paragraphs = content.split('\n\n');
+        const paragraphs = content.split("\n\n");
 
         return (
           <span key={i}>
             {paragraphs.map((para, pIdx) => (
               <span key={pIdx}>
                 {para.split(/(\*\*.*?\*\*)/g).map((t, j) => {
-                  if (t.startsWith('**') && t.endsWith('**')) {
-                    return <strong key={j} className="text-white font-semibold">{t.slice(2, -2)}</strong>;
+                  if (t.startsWith("**") && t.endsWith("**")) {
+                    return (
+                      <strong key={j} className="text-white font-semibold">
+                        {t.slice(2, -2)}
+                      </strong>
+                    );
                   }
 
-                  const lines = t.split('\n');
+                  const lines = t.split("\n");
                   return (
                     <span key={j}>
                       {lines.map((ln, k) => (
@@ -114,15 +146,23 @@ function MarkdownRenderer({ text }: { text: string }) {
 export function CampusAssistantWidget() {
   const { token, isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState<string | null>(null);
   const [context, setContext] = useState<AssistantContext>(EMPTY_CONTEXT);
   const [suggestions, setSuggestions] = useState<string[]>(DEFAULT_SUGGESTIONS);
   const [entries, setEntries] = useState<ChatEntry[]>([DEFAULT_WELCOME_ENTRY]);
+  const clarificationLabel = getClarificationLabel(
+    context.pendingClarificationType,
+  );
+  const visibleSuggestions = context.pendingClarificationOptions?.length
+    ? context.pendingClarificationOptions
+    : suggestions;
+  const isClarifying = Boolean(context.pendingClarificationType);
 
   const history = useMemo<AssistantMessage[]>(
-    () => entries.map((entry) => ({ role: entry.role, content: entry.content })),
+    () =>
+      entries.map((entry) => ({ role: entry.role, content: entry.content })),
     [entries],
   );
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
@@ -131,7 +171,7 @@ export function CampusAssistantWidget() {
     if (!open) return;
     const container = messagesContainerRef.current;
     if (!container) return;
-    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
   }, [entries, loading, open]);
 
   useEffect(() => {
@@ -143,9 +183,9 @@ export function CampusAssistantWidget() {
   }, [isAuthenticated]);
 
   const pushAssistantAction = (action?: AssistantRouteAction) => {
-    if (!action || action.type !== 'highlight-route') return;
+    if (!action || action.type !== "highlight-route") return;
     window.dispatchEvent(
-      new CustomEvent('cuceiverse.assistant.route', {
+      new CustomEvent("cuceiverse.assistant.route", {
         detail: action,
       }),
     );
@@ -161,13 +201,13 @@ export function CampusAssistantWidget() {
 
     const userEntry: ChatEntry = {
       id: `u-${Date.now()}`,
-      role: 'user',
+      role: "user",
       content: message,
     };
 
     const nextEntries = [...entries, userEntry];
     setEntries(nextEntries);
-    setInput('');
+    setInput("");
     setLoading(true);
 
     try {
@@ -181,7 +221,7 @@ export function CampusAssistantWidget() {
         ...prev,
         {
           id: `a-${Date.now()}`,
-          role: 'assistant',
+          role: "assistant",
           content: response.reply,
         },
       ]);
@@ -195,11 +235,11 @@ export function CampusAssistantWidget() {
         ...prev,
         {
           id: `e-${Date.now()}`,
-          role: 'assistant',
+          role: "assistant",
           content:
             error instanceof Error
               ? error.message
-              : 'No pude responder en este momento. Intenta de nuevo.',
+              : "No pude responder en este momento. Intenta de nuevo.",
         },
       ]);
     } finally {
@@ -218,7 +258,9 @@ export function CampusAssistantWidget() {
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-emerald-400 text-slate-900 shadow-[0_0_15px_rgba(34,211,238,0.4)]">
                 <Bot size={18} />
               </div>
-              <strong className="text-sm font-medium tracking-wide text-white">Asistente CUCEIverse</strong>
+              <strong className="text-sm font-medium tracking-wide text-white">
+                Asistente CUCEIverse
+              </strong>
             </div>
             <button
               type="button"
@@ -229,17 +271,23 @@ export function CampusAssistantWidget() {
             </button>
           </header>
 
-          <div ref={messagesContainerRef} className="flex-1 space-y-8 overflow-y-auto bg-slate-900/40 p-5 pt-10 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10">
+          <div
+            ref={messagesContainerRef}
+            className="flex-1 space-y-8 overflow-y-auto bg-slate-900/40 p-5 pt-10 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10"
+          >
             {entries.map((entry) => (
               <article
                 key={entry.id}
-                className={`relative max-w-[88%] rounded-2xl px-4 py-2.5 text-[0.93rem] leading-relaxed shadow-md transition-all ${entry.role === 'assistant'
-                    ? 'mr-auto rounded-tl-none bg-[#202c33] text-gray-100'
-                    : 'ml-auto rounded-tr-none bg-[#005c4b] text-white'
-                  }`}
+                className={`relative max-w-[88%] rounded-2xl px-4 py-2.5 text-[0.93rem] leading-relaxed shadow-md transition-all ${
+                  entry.role === "assistant"
+                    ? "mr-auto rounded-tl-none bg-[#202c33] text-gray-100"
+                    : "ml-auto rounded-tr-none bg-[#005c4b] text-white"
+                }`}
               >
                 {/* Whatsapp-style tail injection */}
-                <div className={`absolute top-0 w-3 h-3 ${entry.role === 'assistant' ? '-left-2 bg-[#202c33] [clip-path:polygon(100%_0,0_0,100%_100%)]' : '-right-2 bg-[#005c4b] [clip-path:polygon(0_0,100%_0,0_100%)]'}`}></div>
+                <div
+                  className={`absolute top-0 w-3 h-3 ${entry.role === "assistant" ? "-left-2 bg-[#202c33] [clip-path:polygon(100%_0,0_0,100%_100%)]" : "-right-2 bg-[#005c4b] [clip-path:polygon(0_0,100%_0,0_100%)]"}`}
+                ></div>
                 <MarkdownRenderer text={entry.content} />
               </article>
             ))}
@@ -254,25 +302,35 @@ export function CampusAssistantWidget() {
           </div>
 
           <footer className="border-t border-white/5 bg-slate-900/90 p-3 shadow-[0_-10px_30px_rgba(0,0,0,0.3)] backdrop-blur-md">
-            {suggestions.length > 0 ? (
+            {visibleSuggestions.length > 0 ? (
               <div className="mb-3 flex flex-wrap gap-2">
-                {suggestions.slice(0, 3).map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    disabled={loading}
-                    onClick={() => {
-                      setActiveSuggestion(suggestion);
-                      void sendMessage(suggestion);
-                    }}
-                    className={`rounded-full border px-3 py-1.5 text-[0.8rem] tracking-wide transition-all disabled:opacity-50 ${activeSuggestion === suggestion
-                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300'
-                        : 'border-cyan-500/30 bg-slate-800/80 text-cyan-300 hover:border-cyan-400 md:hover:bg-cyan-500/10'
+                {clarificationLabel ? (
+                  <div className="basis-full text-[0.68rem] font-bold uppercase tracking-[0.18em] text-amber-300/90">
+                    {clarificationLabel}
+                  </div>
+                ) : null}
+                {visibleSuggestions
+                  .slice(0, isClarifying ? 5 : 3)
+                  .map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setActiveSuggestion(suggestion);
+                        void sendMessage(suggestion);
+                      }}
+                      className={`rounded-full border px-3 py-1.5 text-[0.8rem] tracking-wide transition-all disabled:opacity-50 ${
+                        activeSuggestion === suggestion
+                          ? "border-emerald-400 bg-emerald-500/20 text-emerald-300"
+                          : isClarifying
+                            ? "border-amber-400/50 bg-amber-500/10 text-amber-100 hover:border-amber-300 md:hover:bg-amber-500/20"
+                            : "border-cyan-500/30 bg-slate-800/80 text-cyan-300 hover:border-cyan-400 md:hover:bg-cyan-500/10"
                       }`}
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
               </div>
             ) : null}
             <div className="flex items-center gap-2">
@@ -283,12 +341,12 @@ export function CampusAssistantWidget() {
                   if (activeSuggestion) setActiveSuggestion(null);
                 }}
                 onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
+                  if (event.key === "Enter") {
                     event.preventDefault();
                     void sendMessage();
                   }
                 }}
-                placeholder="Pregunta por rutas, clases o profesores..."
+                placeholder={getInputPlaceholder(context)}
                 className="h-11 flex-1 rounded-xl border border-white/10 bg-slate-950 px-4 text-sm text-slate-100 shadow-inner outline-none transition placeholder:text-slate-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/50"
               />
               <button

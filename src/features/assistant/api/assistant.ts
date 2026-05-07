@@ -1,14 +1,15 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000';
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
 
 export type AssistantIntent =
-  | 'navigation'
-  | 'academic'
-  | 'administrative'
-  | 'platform'
-  | 'general';
+  | "navigation"
+  | "academic"
+  | "administrative"
+  | "platform"
+  | "general";
 
 export type AssistantMessage = {
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
 };
 
@@ -19,10 +20,24 @@ export type AssistantContext = {
   lastDestinationLabel?: string;
   pendingDestinationPoiId?: string;
   pendingDestinationLabel?: string;
+  lastOfferSubject?: string;
+  lastOfferProfessor?: string;
+  lastOfferBuilding?: string;
+  lastOfferMode?: string;
+  lastAdministrativeTramiteId?: string;
+  lastAdministrativeTramiteTitle?: string;
+  lastAdministrativeCategory?: string;
+  lastAdministrativeLocation?: string;
+  pendingClarificationType?: string;
+  pendingClarificationOptions?: string[];
+  lastResolvedIntent?: string;
+  lastResolvedEntityType?: string;
+  lastResolvedEntityLabel?: string;
+  lastUserGoal?: string;
 };
 
 export type AssistantRouteAction = {
-  type: 'highlight-route';
+  type: "highlight-route";
   destinationPoiId?: string;
   destinationLabel?: string;
   originPoiId?: string;
@@ -46,9 +61,9 @@ export async function sendAssistantMessage(
   },
 ): Promise<AssistantChatResponse> {
   const response = await fetch(`${API_BASE_URL}/assistant/chat`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
@@ -67,7 +82,7 @@ export async function sendAssistantMessage(
 
   if (!response.ok) {
     const message =
-      typeof data.message === 'string'
+      typeof data.message === "string"
         ? data.message
         : `No fue posible enviar mensaje al asistente (${response.status})`;
     throw new Error(message);
