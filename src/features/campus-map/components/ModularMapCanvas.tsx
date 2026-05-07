@@ -93,6 +93,12 @@ type Props = {
    * Intended for the editor in 2D mode.
    */
   templateUnderlayEnabled?: boolean;
+  /** Optional external controller ref to expose zoom/reset controls. */
+  controllerRef?: MutableRefObject<{
+    zoomIn: () => void;
+    zoomOut: () => void;
+    reset: () => void;
+  } | null>;
 };
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
@@ -281,6 +287,13 @@ function getAvatarPose(
   }
 }
 
+function isTouchLikeEnvironment(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches;
+}
+
 function drawGridTile(
   graphics: Graphics,
   cell: GridCell,
@@ -457,6 +470,7 @@ export function ModularMapCanvas({
   avatarImageUrl,
   onFirstFrameRendered,
   templateUnderlayEnabled = false,
+  controllerRef,
 }: Props) {
   const didNotifyFirstFrameRef = useRef(false);
   const showTemplateUnderlay =
@@ -612,6 +626,8 @@ export function ModularMapCanvas({
     initialWorldX: number;
     initialWorldY: number;
   } | null>(null);
+  const touchCameraTargetRef = useRef<EditorCamera | null>(null);
+  const touchCameraFrameRef = useRef(0);
 
   const [camera, setCamera] = useState<EditorCamera>(() => ({
     ...fitCameraToBounds(
@@ -623,6 +639,7 @@ export function ModularMapCanvas({
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [viewportSize, setViewportSize] = useState({ width: 1400, height: 820 });
+  const [isTouchLike, setIsTouchLike] = useState(() => isTouchLikeEnvironment());
 
   const didAutoFitRef = useRef(false);
   const lastAutoFitModeRef = useRef<NonNullable<Props['viewMode']> | undefined>(undefined);
@@ -669,6 +686,93 @@ export function ModularMapCanvas({
       ? get2DCampusBounds(editorState.grid)
       : getIsoCampusBounds(editorState.grid);
   }, [viewMode, editorState.grid]);
+
+  const resetCamera = useCallback(() => {
+    const nextCamera = fitCameraToBounds(viewportSize, campusBounds);
+    pendingCameraRef.current = null;
+    setCamera(nextCamera);
+    applyCameraTransform(nextCamera);
+  }, [applyCameraTransform, campusBounds, viewportSize]);
+
+  const zoomCamera = useCallback(
+    (factor: number) => {
+      scheduleCameraUpdate((current) => {
+        const nextScale = clamp(current.scale * factor, MIN_ZOOM, MAX_ZOOM);
+        const centerX = viewportSize.width / 2;
+        const centerY = viewportSize.height / 2;
+        const worldX = (centerX - current.x) / current.scale;
+        const worldY = (centerY - current.y) / current.scale;
+        return {
+          x: centerX - worldX * nextScale,
+          y: centerY - worldY * nextScale,
+          scale: nextScale,
+        };
+      });
+    },
+    [scheduleCameraUpdate, viewportSize.height, viewportSize.width],
+  );
+
+  const smoothTouchCamera = useCallback(
+    (nextCamera: EditorCamera) => {
+      touchCameraTargetRef.current = nextCamera;
+
+      if (touchCameraFrameRef.current) {
+        return;
+      }
+
+      const tick = () => {
+        const target = touchCameraTargetRef.current;
+        if (!target) {
+          touchCameraFrameRef.current = 0;
+          return;
+        }
+
+        const current = cameraRef.current ?? camera;
+        const deltaX = target.x - current.x;
+        const deltaY = target.y - current.y;
+        const deltaScale = target.scale - current.scale;
+
+        const nextCamera = {
+          x: current.x + deltaX * 0.28,
+          y: current.y + deltaY * 0.28,
+          scale: current.scale + deltaScale * 0.22,
+        };
+
+        const closeEnough =
+          Math.abs(deltaX) < 0.15 &&
+          Math.abs(deltaY) < 0.15 &&
+          Math.abs(deltaScale) < 0.0015;
+
+        applyCameraTransform(nextCamera);
+        setCamera(nextCamera);
+
+        if (closeEnough) {
+          applyCameraTransform(target);
+          setCamera(target);
+          touchCameraTargetRef.current = null;
+          touchCameraFrameRef.current = 0;
+          return;
+        }
+
+        touchCameraFrameRef.current = requestAnimationFrame(tick);
+      };
+
+      touchCameraFrameRef.current = requestAnimationFrame(tick);
+    },
+    [applyCameraTransform, camera],
+  );
+
+  useEffect(() => {
+    if (!controllerRef) return;
+    controllerRef.current = {
+      zoomIn: () => zoomCamera(1.15),
+      zoomOut: () => zoomCamera(1 / 1.15),
+      reset: () => resetCamera(),
+    };
+    return () => {
+      if (controllerRef) controllerRef.current = null;
+    };
+  }, [controllerRef, zoomCamera, resetCamera]);
 
   useEffect(() => {
     applyCameraTransform(camera);
@@ -765,6 +869,33 @@ export function ModularMapCanvas({
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const media = window.matchMedia('(pointer: coarse)');
+    const update = () => setIsTouchLike(media.matches || window.innerWidth <= 900);
+
+    update();
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', update);
+      window.addEventListener('resize', update);
+      return () => {
+        media.removeEventListener('change', update);
+        window.removeEventListener('resize', update);
+      };
+    }
+
+    media.addListener(update);
+    window.addEventListener('resize', update);
+    return () => {
+      media.removeListener(update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
+
+  useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) {
       return;
@@ -794,6 +925,16 @@ export function ModularMapCanvas({
     if (!didMeasureViewportRef.current) {
       return;
     }
+
+    // Ignore spurious very-small measurements that sometimes occur on first
+    // paint (e.g. 0x0 or very small values). Wait until the viewport has a
+    // reasonable size before performing the initial auto-fit so a later
+    // ResizeObserver update can still trigger the fit.
+    const MIN_VIEWPORT_DIM = 120;
+    if (viewportSize.width < MIN_VIEWPORT_DIM || viewportSize.height < MIN_VIEWPORT_DIM) {
+      return;
+    }
+
     const modeChanged = lastAutoFitModeRef.current !== viewMode;
     if (!didAutoFitRef.current || modeChanged) {
       const nextCamera = fitCameraToBounds(viewportSize, campusBounds);
@@ -840,6 +981,9 @@ export function ModularMapCanvas({
     return () => {
       if (cameraFrameRef.current) {
         cancelAnimationFrame(cameraFrameRef.current);
+      }
+      if (touchCameraFrameRef.current) {
+        cancelAnimationFrame(touchCameraFrameRef.current);
       }
     };
   }, []);
@@ -1118,7 +1262,7 @@ export function ModularMapCanvas({
         const rawScale = pinch.initialScale * (distance / pinch.initialDistance);
         const nextScale = clamp(rawScale, MIN_ZOOM, MAX_ZOOM);
 
-        scheduleCameraUpdate({
+        smoothTouchCamera({
           x: localX - pinch.initialWorldX * nextScale,
           y: localY - pinch.initialWorldY * nextScale,
           scale: nextScale,
@@ -1129,11 +1273,11 @@ export function ModularMapCanvas({
       // Pan con 1 dedo
       const pan = panRef.current;
       if (pan && editorState.activeTool === 'pan' && isPanning) {
-        scheduleCameraUpdate((current) => ({
-          ...current,
+        smoothTouchCamera({
           x: pan.cameraX + (event.clientX - pan.pointerX),
           y: pan.cameraY + (event.clientY - pan.pointerY),
-        }));
+          scale: cameraRef.current?.scale ?? camera.scale,
+        });
         return;
       }
 
@@ -1178,6 +1322,7 @@ export function ModularMapCanvas({
     propDragRef.current = null;
     setIsPanning(false);
     panRef.current = null;
+    touchCameraTargetRef.current = null;
   };
 
   const finishPointerInteraction = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -1849,6 +1994,41 @@ export function ModularMapCanvas({
       onDragOver={handleDragOver}
       onContextMenu={(event) => event.preventDefault()}
     >
+      {isTouchLike ? (
+        <div className="pointer-events-none absolute inset-x-4 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-30 flex flex-col items-end gap-3 sm:hidden">
+          <div className="pointer-events-auto rounded-2xl border border-slate-700/70 bg-slate-950/90 px-3 py-2 text-[11px] font-medium text-slate-200 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
+            <div className="font-semibold uppercase tracking-widest text-cyan-300">Controles táctiles</div>
+            <div>Arrastra con un dedo para mover.</div>
+            <div>Pellizca para zoom. Usa +/- o el botón centro para recentrar.</div>
+          </div>
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-slate-700/70 bg-slate-950/95 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
+            <button
+              type="button"
+              onClick={() => zoomCamera(0.85)}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white transition-transform duration-150 active:scale-95"
+              aria-label="Acercar mapa"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={resetCamera}
+              className="flex h-11 min-w-24 items-center justify-center rounded-full border border-cyan-500/40 bg-cyan-500 px-4 text-[11px] font-black uppercase tracking-widest text-cyan-950 shadow-[0_0_18px_rgba(34,211,238,0.14)] transition-transform duration-150 active:scale-95"
+              aria-label="Recentrar mapa"
+            >
+              Centro
+            </button>
+            <button
+              type="button"
+              onClick={() => zoomCamera(1 / 0.85)}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white transition-transform duration-150 active:scale-95"
+              aria-label="Alejar mapa"
+            >
+              −
+            </button>
+          </div>
+        </div>
+      ) : null}
       {devUnderlayTexture ? (
         <div className="absolute right-3 top-36 z-20 rounded-xl border border-slate-700/60 bg-[#030610]/80 px-3 py-2 text-xs text-slate-200 backdrop-blur">
           <div className="flex items-center justify-between gap-2">

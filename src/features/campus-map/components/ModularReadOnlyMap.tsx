@@ -1,20 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Flag, MapPin } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown, Flag, MapPin, Plus, Minus } from 'lucide-react';
 
-import { useAuth } from "../../../context/useAuth";
-import { fetchModularMapLayout } from "../api/mapaAdmin";
+import { useAuth } from '../../../context/useAuth';
+import { fetchModularMapLayout } from '../api/mapaAdmin';
 import campusModularSeed from "../data/campusModularSeed.json";
-import { cellKey, expandBlockCells } from "../editor/buildingAdjacency";
-import { gridAStarPath, snapToPathTile } from "../lib/gridAStar";
-import { loadRuntimeSeed } from "../lib/runtimeSeed";
-import { useAvatarWalk } from "../hooks/useAvatarWalk";
-import { getMyProfile } from "../../../features/auth/api/auth";
+import { cellKey, expandBlockCells } from '../editor/buildingAdjacency';
+import { gridAStarPath, snapToPathTile } from '../lib/gridAStar';
+import { loadRuntimeSeed } from '../lib/runtimeSeed';
+import { useAvatarWalk } from '../hooks/useAvatarWalk';
+import { getMyProfile } from '../../../features/auth/api/auth';
 import {
   extractFigureFromAvatarValue,
   resolveAvatarImage,
 } from "../../../lib/avatarImage";
-import { ModularMapCanvas } from "./ModularMapCanvas";
-import { usePerfViewLoadEnd } from "../../../lib/usePerfViewLoadEnd";
+import { ModularMapCanvas } from './ModularMapCanvas';
+import { usePerfViewLoadEnd } from '../../../lib/usePerfViewLoadEnd';
 import type {
   BuildingBlock,
   GridCell,
@@ -40,6 +40,22 @@ type VisibilityFilters = {
   services: boolean;
   infrastructure: boolean;
   decoration: boolean;
+};
+
+const EMPTY_BASE_SEED: ModularMapSeed = {
+  schemaVersion: 'modular-map@1',
+  mapId: 'cucei-main-campus',
+  grid: {
+    columns: 1,
+    rows: 1,
+    tileWidth: 1,
+    tileHeight: 1,
+    origin: { x: 0, y: 0 },
+  },
+  areaCells: [{ x: 0, y: 0 }],
+  buildings: [],
+  paths: [],
+  props: [],
 };
 
 const SERVICE_PROP_KINDS = new Set<PropKind>(["poi", "bathroom", "trash"]);
@@ -172,6 +188,8 @@ function normalizeQuery(value: string): string {
     .trim();
 }
 
+const VIEW_MODE_STORAGE_KEY = 'cuceiverse.map.viewMode';
+
 function routeLabelAliases(value: string): string[] {
   const normalized = normalizeQuery(value);
   if (!normalized) return [];
@@ -218,7 +236,6 @@ function findWaypointForAssistantRoute(
 }
 
 const bundledSeed = campusModularSeed as ModularMapSeed;
-const VIEW_MODE_STORAGE_KEY = "cuceiverse.map.viewMode";
 
 function getInitialViewMode(): "isometric" | "2d" {
   if (typeof window === "undefined") {
@@ -453,10 +470,12 @@ function toViewerState(
 }
 
 export function ModularReadOnlyMap() {
-  const fallbackSeed = useMemo(() => loadRuntimeSeed() ?? bundledSeed, []);
+  const zoomControllerRef = useRef<{ zoomIn: () => void; zoomOut: () => void; reset: () => void } | null>(null);
+  const [baseSeed, setBaseSeed] = useState<ModularMapSeed>(() => loadRuntimeSeed() ?? EMPTY_BASE_SEED);
+  const [seedReady, setSeedReady] = useState(() => loadRuntimeSeed() != null);
   const { token } = useAuth();
-  const [layout, setLayout] = useState<ModularMapSeed>(fallbackSeed);
-  const [status, setStatus] = useState("Cargando mapa modular...");
+  const [layout, setLayout] = useState<ModularMapSeed>(baseSeed);
+  const [status, setStatus] = useState('Cargando mapa modular...');
   const [isSyncing, setIsSyncing] = useState(true);
   const [canvasReady, setCanvasReady] = useState(false);
   const [viewMode, setViewMode] = useState<"isometric" | "2d">(
@@ -491,25 +510,52 @@ export function ModularReadOnlyMap() {
   );
 
   usePerfViewLoadEnd({
-    path: "/home",
-    label: "Mapa",
-    isLoading: isSyncing || !canvasReady,
+    path: '/home',
+    label: 'Mapa',
+    isLoading: !seedReady || isSyncing || !canvasReady,
   });
+
+  useEffect(() => {
+    if (seedReady) {
+      return;
+    }
+
+    let cancelled = false;
+    void import('../data/campusModularSeed.json').then((module) => {
+      if (cancelled) {
+        return;
+      }
+
+      const nextSeed = module.default as ModularMapSeed;
+      setBaseSeed(nextSeed);
+      setLayout(nextSeed);
+      setSeedReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [seedReady]);
 
   const statusLabel = useMemo(() => {
     const normalized = status.toLowerCase();
-    if (normalized.includes("cargando")) return "Sincronizando mapa...";
-    if (normalized.includes("seed local")) return "Modo local activo";
-    if (normalized.includes("mapa actualizado")) return status;
-    return "Mapa listo";
+    if (normalized.includes('cargando')) return 'Sincronizando mapa...';
+    if (normalized.includes('seed local')) return 'Modo local activo';
+    // Mostrar versión corta y amigable cuando se indica que el mapa fue actualizado
+    if (normalized.includes('mapa actualizado') || normalized.includes('cargado desde filesystem')) return 'Actualizado hoy';
+    return 'Mapa listo';
   }, [status]);
 
   useEffect(() => {
+    if (!seedReady) {
+      return;
+    }
+
     let cancelled = false;
     setStatus("Cargando mapa modular...");
     setIsSyncing(true);
 
-    fetchModularMapLayout(token, fallbackSeed.mapId)
+    fetchModularMapLayout(token, baseSeed.mapId)
       .then((response) => {
         if (cancelled) {
           return;
@@ -526,8 +572,8 @@ export function ModularReadOnlyMap() {
         if (cancelled) {
           return;
         }
-        setLayout(fallbackSeed);
-        setStatus("No se pudo cargar layout remoto, usando seed local.");
+        setLayout(baseSeed);
+        setStatus('No se pudo cargar layout remoto, usando seed local.');
       })
       .finally(() => {
         if (!cancelled) {
@@ -538,7 +584,7 @@ export function ModularReadOnlyMap() {
     return () => {
       cancelled = true;
     };
-  }, [token, fallbackSeed]);
+  }, [token, baseSeed, seedReady]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -984,7 +1030,7 @@ export function ModularReadOnlyMap() {
         </div>
 
         {/* --- ALWAYS VISIBLE HEADER --- */}
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-6 px-4 py-4 sm:px-8 sm:py-5">
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-8 px-4 py-5 sm:px-8 sm:py-6">
           {/* Clickable Title Area to toggle Navigation */}
           <button
             type="button"
@@ -992,11 +1038,8 @@ export function ModularReadOnlyMap() {
             className="group flex flex-col gap-1 text-left transition-opacity hover:opacity-90"
             title="Desplegar/Ocultar controles de navegación"
           >
-            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-cyan-400/90 flex items-center gap-2">
-              CUCEIverse
-              <span className="text-[10px] lowercase tracking-normal text-slate-500 font-normal">
-                {navOpen ? "(Ocultar navegación)" : "(Mostrar navegación)"}
-              </span>
+            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-cyan-400/90 flex items-center gap-2 pl-1">
+              CUCEIVERSE
             </p>
             <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl flex items-center gap-3">
               Mapa modular del campus
@@ -1234,9 +1277,11 @@ export function ModularReadOnlyMap() {
       </section>
 
       {/* --- CONTENEDOR DEL MAPA ESTILIZADO CON VIÑETA MÁS SUAVE --- */}
-      <div className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
-        {/* Viñeta reducida: Menos spread y blur para que no invada los edificios */}
-        <div className="pointer-events-none absolute inset-0 z-10 shadow-[inset_0_0_40px_15px_#030610]" />
+      <div
+        className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
+      >
+
+        {/* Viñeta eliminada para mostrar el mapa sin sombreado */}
 
         <div className="relative z-0 h-full w-full">
           {isSyncing ? (
@@ -1272,7 +1317,28 @@ export function ModularReadOnlyMap() {
             avatarIsMoving={avatarIsMoving}
             avatarImageUrl={habboAvatarUrl}
             onFirstFrameRendered={() => setCanvasReady(true)}
+            controllerRef={zoomControllerRef}
           />
+
+          {/* Floating zoom controls (top-right) */}
+          <div className="absolute top-4 right-4 z-40 flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => zoomControllerRef.current?.zoomIn()}
+              title="Acercar"
+              className="h-10 w-10 rounded-full bg-slate-900/80 text-white shadow-lg flex items-center justify-center hover:brightness-110"
+            >
+              <Plus size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() => zoomControllerRef.current?.zoomOut()}
+              title="Alejar"
+              className="h-10 w-10 rounded-full bg-slate-900/80 text-white shadow-lg flex items-center justify-center hover:brightness-110"
+            >
+              <Minus size={16} />
+            </button>
+          </div>
         </div>
       </div>
     </section>

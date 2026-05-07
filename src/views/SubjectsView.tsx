@@ -118,7 +118,7 @@ export const SubjectsView: React.FC = () => {
 
       // 2. Polling: esperar a que termine
       let finished = false;
-      let lastResult: any = null;
+      let lastResult: AcademicOfferRecord[] | null = null;
 
       while (!finished) {
         await new Promise(r => setTimeout(r, 3000));
@@ -137,7 +137,9 @@ export const SubjectsView: React.FC = () => {
 
         if (!statusData.running && statusData.hasResult) {
           finished = true;
-          lastResult = statusData.materias;
+          lastResult = Array.isArray(statusData.materias)
+            ? (statusData.materias as AcademicOfferRecord[])
+            : null;
         }
 
         // Si por alguna razón deja de correr sin resultado
@@ -208,6 +210,7 @@ export const SubjectsView: React.FC = () => {
   };
 
   const canShowSubjects = sourceSubjects.length > 0;
+  const isInitialLoading = offerState.status !== 'ready' && sourceSubjects.length === 0;
 
   return (
     <>
@@ -253,7 +256,13 @@ export const SubjectsView: React.FC = () => {
           </div>
 
           <div className="subjects-grid">
-            {canShowSubjects && currentSubjects.length > 0 ? (
+            {isInitialLoading ? (
+              <div className="no-results glass-panel">
+                <div className="h-10 w-10 animate-spin rounded-full border-4 border-cyan-500/20 border-t-cyan-400" />
+                <h3>Sincronizando oferta</h3>
+                <p>Estamos cargando las materias reales desde SIIAU.</p>
+              </div>
+            ) : canShowSubjects && currentSubjects.length > 0 ? (
               currentSubjects.map((subject, index) => {
                 const modalidad = getModalidad(subject.Edificio);
 

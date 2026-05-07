@@ -5,8 +5,6 @@ import { Link } from 'react-router-dom';
 import { AcademicProfileHUD } from '../components/AcademicProfileHUD';
 import { useAuth } from '../context/useAuth';
 import { useAcademicOffer } from '../context/useAcademicOffer';
-import mockData from '../data/mockSubjects.json';
-import type { AcademicOfferRecord } from '../context/AcademicOfferContextStore';
 import { usePerfViewLoadEnd } from '../lib/usePerfViewLoadEnd';
 
 import './AcademicProfileView.css';
@@ -25,10 +23,8 @@ export const AcademicProfileView: React.FC = () => {
     if (!token) return;
     if (offerState.status === 'loading') return;
     if (offerState.status === 'ready' && offerState.snapshot?.profile) return;
-
     void loadAcademicOffer(token, {
       force: offerState.status === 'ready' && !offerState.snapshot?.profile,
-      offerRecords: mockData as AcademicOfferRecord[],
     });
   }, [token, offerState.status, offerState.snapshot, loadAcademicOffer]);
 
@@ -122,10 +118,7 @@ export const AcademicProfileView: React.FC = () => {
 
   const handleManualSync = () => {
     if (!token) return;
-    void loadAcademicOffer(token, {
-      force: true,
-      offerRecords: mockData as AcademicOfferRecord[],
-    });
+    void loadAcademicOffer(token, { force: true });
   };
 
   return (
