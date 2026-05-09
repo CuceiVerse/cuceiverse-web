@@ -3,7 +3,6 @@ import { ChevronDown, Flag, MapPin, Plus, Minus } from 'lucide-react';
 
 import { useAuth } from '../../../context/useAuth';
 import { fetchModularMapLayout } from '../api/mapaAdmin';
-import campusModularSeed from "../data/campusModularSeed.json";
 import { cellKey, expandBlockCells } from '../editor/buildingAdjacency';
 import { gridAStarPath, snapToPathTile } from '../lib/gridAStar';
 import { loadRuntimeSeed } from '../lib/runtimeSeed';
@@ -234,8 +233,6 @@ function findWaypointForAssistantRoute(
     }) ?? null
   );
 }
-
-const bundledSeed = campusModularSeed as ModularMapSeed;
 
 function getInitialViewMode(): "isometric" | "2d" {
   if (typeof window === "undefined") {
