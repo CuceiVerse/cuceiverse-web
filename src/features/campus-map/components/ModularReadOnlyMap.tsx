@@ -610,6 +610,21 @@ export function ModularReadOnlyMap() {
   }, [token]);
 
   const viewerState = useMemo(() => toViewerState(layout), [layout]);
+  const layoutVersionKey = useMemo(
+    () =>
+      [
+        layout.mapId,
+        layout.grid.columns,
+        layout.grid.rows,
+        layout.grid.origin.x,
+        layout.grid.origin.y,
+        layout.areaCells?.length ?? 0,
+        layout.buildings.length,
+        layout.paths.length,
+        layout.props.length,
+      ].join(':'),
+    [layout],
+  );
 
   // ── Waypoints unificados: servicios etiquetados del mapa + edificios ───────
   const waypoints = useMemo<MapWaypoint[]>(() => {
@@ -1315,6 +1330,7 @@ export function ModularReadOnlyMap() {
             avatarImageUrl={habboAvatarUrl}
             onFirstFrameRendered={() => setCanvasReady(true)}
             controllerRef={zoomControllerRef}
+            layoutVersionKey={layoutVersionKey}
           />
 
           {/* Floating zoom controls (top-right) */}

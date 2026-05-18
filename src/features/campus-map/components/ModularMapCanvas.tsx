@@ -22,6 +22,7 @@ import {
   type EditorCamera,
 } from '../editor/isometricGridMath';
 import { resolveAvatarImage } from '../../../lib/avatarImage';
+import '../campus-map.css';
 import type {
   BlockFootprint,
   GridCell,
@@ -99,6 +100,11 @@ type Props = {
     zoomOut: () => void;
     reset: () => void;
   } | null>;
+  /**
+   * Changes when the host replaces the backing map layout.
+   * Used by read-only views to refit after async seed/layout loading.
+   */
+  layoutVersionKey?: string;
 };
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
@@ -471,6 +477,7 @@ export function ModularMapCanvas({
   onFirstFrameRendered,
   templateUnderlayEnabled = false,
   controllerRef,
+  layoutVersionKey,
 }: Props) {
   const didNotifyFirstFrameRef = useRef(false);
   const showTemplateUnderlay =
@@ -643,6 +650,7 @@ export function ModularMapCanvas({
 
   const didAutoFitRef = useRef(false);
   const lastAutoFitModeRef = useRef<NonNullable<Props['viewMode']> | undefined>(undefined);
+  const lastAutoFitLayoutKeyRef = useRef<string | undefined>(layoutVersionKey);
 
   const applyCameraTransform = useCallback((nextCamera: EditorCamera) => {
     cameraRef.current = nextCamera;
@@ -901,6 +909,7 @@ export function ModularMapCanvas({
       return;
     }
 
+    let frameId = 0;
     const updateSize = () => {
       didMeasureViewportRef.current = true;
       setViewportSize({
@@ -910,10 +919,14 @@ export function ModularMapCanvas({
     };
 
     updateSize();
+    frameId = window.requestAnimationFrame(updateSize);
     const observer = new ResizeObserver(updateSize);
     observer.observe(viewport);
 
     return () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
       observer.disconnect();
     };
   }, []);
@@ -936,14 +949,25 @@ export function ModularMapCanvas({
     }
 
     const modeChanged = lastAutoFitModeRef.current !== viewMode;
-    if (!didAutoFitRef.current || modeChanged) {
+    const layoutChanged =
+      layoutVersionKey !== undefined &&
+      lastAutoFitLayoutKeyRef.current !== layoutVersionKey;
+    if (!didAutoFitRef.current || modeChanged || layoutChanged) {
       const nextCamera = fitCameraToBounds(viewportSize, campusBounds);
       applyCameraTransform(nextCamera);
       setCamera(nextCamera);
       didAutoFitRef.current = true;
       lastAutoFitModeRef.current = viewMode;
+      lastAutoFitLayoutKeyRef.current = layoutVersionKey;
     }
-  }, [applyCameraTransform, viewportSize.width, viewportSize.height, viewMode, campusBounds]);
+  }, [
+    applyCameraTransform,
+    viewportSize.width,
+    viewportSize.height,
+    viewMode,
+    campusBounds,
+    layoutVersionKey,
+  ]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
