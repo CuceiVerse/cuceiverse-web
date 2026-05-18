@@ -652,7 +652,7 @@ export function ModularMapCanvas({
   const [hoverCell, setHoverCell] = useState<GridCell | null>(null);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
-  const [viewportSize, setViewportSize] = useState({ width: 1400, height: 820 });
+    const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   const didAutoFitRef = useRef(false);
   const lastAutoFitModeRef = useRef<NonNullable<Props['viewMode']> | undefined>(undefined);
@@ -900,10 +900,18 @@ export function ModularMapCanvas({
 
     updateSize();
     frameId = window.requestAnimationFrame(updateSize);
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(viewport);
+      // Medir múltiples veces en RAF para capturar cambios de layout en móvil
+      let frame2 = window.requestAnimationFrame(() => {
+        updateSize();
+        frame2 = window.requestAnimationFrame(updateSize);
+      });
+      const observer = new ResizeObserver(updateSize);
+      observer.observe(viewport);
 
     return () => {
+        if (frame2) {
+          window.cancelAnimationFrame(frame2);
+        }
       if (frameId) {
         window.cancelAnimationFrame(frameId);
       }
@@ -923,7 +931,7 @@ export function ModularMapCanvas({
     // paint (e.g. 0x0 or very small values). Wait until the viewport has a
     // reasonable size before performing the initial auto-fit so a later
     // ResizeObserver update can still trigger the fit.
-    const MIN_VIEWPORT_DIM = 120;
+      const MIN_VIEWPORT_DIM = 50;
     if (viewportSize.width < MIN_VIEWPORT_DIM || viewportSize.height < MIN_VIEWPORT_DIM) {
       return;
     }
