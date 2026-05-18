@@ -633,6 +633,13 @@ export function ModularMapCanvas({
     initialWorldX: number;
     initialWorldY: number;
   } | null>(null);
+  const lastNativeTouchAtRef = useRef(0);
+  const nativeTouchGestureRef = useRef<{
+    startX: number;
+    startY: number;
+    moved: boolean;
+    pinching: boolean;
+  } | null>(null);
   const touchCameraTargetRef = useRef<EditorCamera | null>(null);
   const touchCameraFrameRef = useRef(0);
 
@@ -1002,6 +1009,226 @@ export function ModularMapCanvas({
   }, [scheduleCameraUpdate]);
 
   useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) {
+      return;
+    }
+
+    const getTouchPoint = (touch: Touch) => ({
+      x: touch.clientX,
+      y: touch.clientY,
+    });
+
+    const nativeTouchToGridCell = (touch: Touch): GridCell => {
+      const rect = viewport.getBoundingClientRect();
+      const currentCamera = cameraRef.current ?? camera;
+      const localX = touch.clientX - rect.left;
+      const localY = touch.clientY - rect.top;
+
+      if (viewMode === '2d') {
+        const worldX = (localX - currentCamera.x) / currentCamera.scale;
+        const worldY = (localY - currentCamera.y) / currentCamera.scale;
+        return {
+          x: Math.floor(worldX / TILE_2D_SIZE),
+          y: Math.floor(worldY / TILE_2D_SIZE),
+        };
+      }
+
+      return screenToIsoGrid(localX, localY, currentCamera, editorState.grid);
+    };
+
+    const beginNativePinch = (touches: TouchList) => {
+      const currentCamera = cameraRef.current ?? camera;
+      const first = getTouchPoint(touches[0]);
+      const second = getTouchPoint(touches[1]);
+      const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+      const midClientX = (first.x + second.x) / 2;
+      const midClientY = (first.y + second.y) / 2;
+      const rect = viewport.getBoundingClientRect();
+      const localX = midClientX - rect.left;
+      const localY = midClientY - rect.top;
+
+      pinchRef.current = {
+        initialDistance: distance,
+        initialScale: currentCamera.scale,
+        initialCameraX: currentCamera.x,
+        initialCameraY: currentCamera.y,
+        initialWorldX: (localX - currentCamera.x) / currentCamera.scale,
+        initialWorldY: (localY - currentCamera.y) / currentCamera.scale,
+      };
+      panRef.current = null;
+      panStartPosRef.current = null;
+      nativeTouchGestureRef.current = nativeTouchGestureRef.current
+        ? { ...nativeTouchGestureRef.current, pinching: true, moved: true }
+        : null;
+      setIsPanning(true);
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      if (editorState.activeTool !== 'pan') {
+        return;
+      }
+
+      lastNativeTouchAtRef.current = Date.now();
+      event.preventDefault();
+
+      if (event.touches.length >= 2) {
+        beginNativePinch(event.touches);
+        return;
+      }
+
+      const touch = event.touches[0];
+      if (!touch) {
+        return;
+      }
+
+      const currentCamera = cameraRef.current ?? camera;
+      panRef.current = {
+        pointerX: touch.clientX,
+        pointerY: touch.clientY,
+        cameraX: currentCamera.x,
+        cameraY: currentCamera.y,
+      };
+      panStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+      nativeTouchGestureRef.current = {
+        startX: touch.clientX,
+        startY: touch.clientY,
+        moved: false,
+        pinching: false,
+      };
+      pinchRef.current = null;
+      setIsPanning(true);
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      if (editorState.activeTool !== 'pan') {
+        return;
+      }
+
+      lastNativeTouchAtRef.current = Date.now();
+      event.preventDefault();
+
+      if (event.touches.length >= 2) {
+        if (nativeTouchGestureRef.current) {
+          nativeTouchGestureRef.current.moved = true;
+          nativeTouchGestureRef.current.pinching = true;
+        }
+        if (!pinchRef.current) {
+          beginNativePinch(event.touches);
+        }
+
+        const pinch = pinchRef.current;
+        if (!pinch) {
+          return;
+        }
+
+        const first = getTouchPoint(event.touches[0]);
+        const second = getTouchPoint(event.touches[1]);
+        const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+        const midClientX = (first.x + second.x) / 2;
+        const midClientY = (first.y + second.y) / 2;
+        const rect = viewport.getBoundingClientRect();
+        const localX = midClientX - rect.left;
+        const localY = midClientY - rect.top;
+        const nextScale = clamp(
+          pinch.initialScale * (distance / pinch.initialDistance),
+          MIN_ZOOM,
+          MAX_ZOOM,
+        );
+
+        applyCameraTransform({
+          x: localX - pinch.initialWorldX * nextScale,
+          y: localY - pinch.initialWorldY * nextScale,
+          scale: nextScale,
+        });
+        return;
+      }
+
+      const touch = event.touches[0];
+      const pan = panRef.current;
+      if (!touch || !pan) {
+        return;
+      }
+
+      const gesture = nativeTouchGestureRef.current;
+      if (gesture && Math.hypot(touch.clientX - gesture.startX, touch.clientY - gesture.startY) > 8) {
+        gesture.moved = true;
+      }
+
+      applyCameraTransform({
+        x: pan.cameraX + (touch.clientX - pan.pointerX),
+        y: pan.cameraY + (touch.clientY - pan.pointerY),
+        scale: cameraRef.current?.scale ?? camera.scale,
+      });
+    };
+
+    const handleTouchEnd = (event: TouchEvent) => {
+      if (editorState.activeTool !== 'pan') {
+        return;
+      }
+
+      lastNativeTouchAtRef.current = Date.now();
+      event.preventDefault();
+
+      if (event.touches.length >= 2) {
+        beginNativePinch(event.touches);
+        return;
+      }
+
+      if (event.touches.length === 1) {
+        const touch = event.touches[0];
+        const currentCamera = cameraRef.current ?? camera;
+        panRef.current = {
+          pointerX: touch.clientX,
+          pointerY: touch.clientY,
+          cameraX: currentCamera.x,
+          cameraY: currentCamera.y,
+        };
+        panStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+        nativeTouchGestureRef.current = {
+          startX: touch.clientX,
+          startY: touch.clientY,
+          moved: false,
+          pinching: false,
+        };
+        pinchRef.current = null;
+        return;
+      }
+
+      const changedTouch = event.changedTouches[0];
+      const gesture = nativeTouchGestureRef.current;
+      if (
+        changedTouch &&
+        gesture &&
+        !gesture.moved &&
+        !gesture.pinching &&
+        onCellClick
+      ) {
+        onCellClick(nativeTouchToGridCell(changedTouch));
+      }
+
+      pinchRef.current = null;
+      panRef.current = null;
+      panStartPosRef.current = null;
+      nativeTouchGestureRef.current = null;
+      touchCameraTargetRef.current = null;
+      setIsPanning(false);
+    };
+
+    viewport.addEventListener('touchstart', handleTouchStart, { passive: false });
+    viewport.addEventListener('touchmove', handleTouchMove, { passive: false });
+    viewport.addEventListener('touchend', handleTouchEnd, { passive: false });
+    viewport.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+    return () => {
+      viewport.removeEventListener('touchstart', handleTouchStart);
+      viewport.removeEventListener('touchmove', handleTouchMove);
+      viewport.removeEventListener('touchend', handleTouchEnd);
+      viewport.removeEventListener('touchcancel', handleTouchEnd);
+    };
+  }, [applyCameraTransform, camera, editorState.activeTool, editorState.grid, onCellClick, viewMode]);
+
+  useEffect(() => {
     return () => {
       if (cameraFrameRef.current) {
         cancelAnimationFrame(cameraFrameRef.current);
@@ -1166,6 +1393,9 @@ export function ModularMapCanvas({
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     // En touch necesitamos gestures y evitar scroll/pinch del navegador.
     if (event.pointerType === 'touch') {
+      if (Date.now() - lastNativeTouchAtRef.current < 500) {
+        return;
+      }
       event.currentTarget.setPointerCapture(event.pointerId);
       activeTouchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
@@ -1263,6 +1493,9 @@ export function ModularMapCanvas({
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'touch') {
+      if (Date.now() - lastNativeTouchAtRef.current < 500) {
+        return;
+      }
       if (activeTouchPointersRef.current.has(event.pointerId)) {
         activeTouchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
       }
@@ -1351,6 +1584,9 @@ export function ModularMapCanvas({
 
   const finishPointerInteraction = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'touch') {
+      if (Date.now() - lastNativeTouchAtRef.current < 500) {
+        return;
+      }
       activeTouchPointersRef.current.delete(event.pointerId);
       if (activeTouchPointersRef.current.size < 2) {
         pinchRef.current = null;
