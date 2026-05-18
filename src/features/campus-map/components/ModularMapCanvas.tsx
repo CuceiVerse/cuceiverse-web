@@ -105,6 +105,11 @@ type Props = {
    * Used by read-only views to refit after async seed/layout loading.
    */
   layoutVersionKey?: string;
+  /**
+   * Forces the camera to refit when the viewport changes.
+   * Useful for read-only mobile layouts where browser chrome can resize the canvas.
+   */
+  autoRefitOnViewportResize?: boolean;
 };
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
@@ -478,6 +483,7 @@ export function ModularMapCanvas({
   templateUnderlayEnabled = false,
   controllerRef,
   layoutVersionKey,
+  autoRefitOnViewportResize = false,
 }: Props) {
   const didNotifyFirstFrameRef = useRef(false);
   const showTemplateUnderlay =
@@ -659,6 +665,7 @@ export function ModularMapCanvas({
   const didAutoFitRef = useRef(false);
   const lastAutoFitModeRef = useRef<NonNullable<Props['viewMode']> | undefined>(undefined);
   const lastAutoFitLayoutKeyRef = useRef<string | undefined>(layoutVersionKey);
+  const lastAutoFitViewportKeyRef = useRef<string | undefined>(undefined);
 
   const applyCameraTransform = useCallback((nextCamera: EditorCamera) => {
     cameraRef.current = nextCamera;
@@ -960,16 +967,21 @@ export function ModularMapCanvas({
     const layoutChanged =
       layoutVersionKey !== undefined &&
       lastAutoFitLayoutKeyRef.current !== layoutVersionKey;
-    if (!didAutoFitRef.current || modeChanged || layoutChanged) {
+    const viewportKey = `${viewportSize.width}x${viewportSize.height}`;
+    const viewportChanged = lastAutoFitViewportKeyRef.current !== viewportKey;
+
+    if (!didAutoFitRef.current || modeChanged || layoutChanged || (autoRefitOnViewportResize && viewportChanged)) {
       const nextCamera = fitCameraToBounds(viewportSize, campusBounds);
       applyCameraTransform(nextCamera);
       setCamera(nextCamera);
       didAutoFitRef.current = true;
       lastAutoFitModeRef.current = viewMode;
       lastAutoFitLayoutKeyRef.current = layoutVersionKey;
+      lastAutoFitViewportKeyRef.current = viewportKey;
     }
   }, [
     applyCameraTransform,
+    autoRefitOnViewportResize,
     viewportSize.width,
     viewportSize.height,
     viewMode,
@@ -2261,41 +2273,6 @@ export function ModularMapCanvas({
       onDragOver={handleDragOver}
       onContextMenu={(event) => event.preventDefault()}
     >
-      {isTouchLike ? (
-        <div className="pointer-events-none absolute inset-x-4 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-30 flex flex-col items-end gap-3 sm:hidden">
-          <div className="pointer-events-auto rounded-2xl border border-slate-700/70 bg-slate-950/90 px-3 py-2 text-[11px] font-medium text-slate-200 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
-            <div className="font-semibold uppercase tracking-widest text-cyan-300">Controles táctiles</div>
-            <div>Arrastra con un dedo para mover.</div>
-            <div>Pellizca para zoom. Usa +/- o el botón centro para recentrar.</div>
-          </div>
-          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-slate-700/70 bg-slate-950/95 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
-            <button
-              type="button"
-              onClick={() => zoomCamera(0.85)}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white transition-transform duration-150 active:scale-95"
-              aria-label="Acercar mapa"
-            >
-              +
-            </button>
-            <button
-              type="button"
-              onClick={resetCamera}
-              className="flex h-11 min-w-24 items-center justify-center rounded-full border border-cyan-500/40 bg-cyan-500 px-4 text-[11px] font-black uppercase tracking-widest text-cyan-950 shadow-[0_0_18px_rgba(34,211,238,0.14)] transition-transform duration-150 active:scale-95"
-              aria-label="Recentrar mapa"
-            >
-              Centro
-            </button>
-            <button
-              type="button"
-              onClick={() => zoomCamera(1 / 0.85)}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white transition-transform duration-150 active:scale-95"
-              aria-label="Alejar mapa"
-            >
-              −
-            </button>
-          </div>
-        </div>
-      ) : null}
       {devUnderlayTexture ? (
         <div className="absolute right-3 top-36 z-20 rounded-xl border border-slate-700/60 bg-[#030610]/80 px-3 py-2 text-xs text-slate-200 backdrop-blur">
           <div className="flex items-center justify-between gap-2">

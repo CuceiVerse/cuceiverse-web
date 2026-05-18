@@ -1331,6 +1331,7 @@ export function ModularReadOnlyMap() {
             onFirstFrameRendered={() => setCanvasReady(true)}
             controllerRef={zoomControllerRef}
             layoutVersionKey={layoutVersionKey}
+            autoRefitOnViewportResize
           />
 
           {/* Floating zoom controls (top-right) */}
