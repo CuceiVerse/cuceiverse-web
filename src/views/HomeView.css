@@ -71,7 +71,7 @@
   }
 
   .modular-read-canvas .modular-canvas-shell {
-    min-height: 500px;
+    min-height: 400px;
   }
 }
 
@@ -101,14 +101,14 @@
   }
 
   .modular-read-canvas .modular-canvas-shell {
-    min-height: auto;
+    min-height: 0;
     flex: 1;
   }
 }
 
 @media (max-width: 600px) {
   .modular-read-canvas {
-    padding: 0.25rem;
+    padding: 0;
   }
   
   .modular-read-header h1 {
@@ -116,6 +116,7 @@
   }
 
   .modular-read-canvas .modular-canvas-shell {
-    min-height: calc(100dvh - 60px - 0.5rem);
+    min-height: 0;
+    flex: 1;
   }
 }
