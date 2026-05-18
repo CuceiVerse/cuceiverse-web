@@ -634,6 +634,7 @@ export function ModularMapCanvas({
     initialWorldY: number;
   } | null>(null);
   const lastNativeTouchAtRef = useRef(0);
+  const suppressNextTapUntilRef = useRef(0);
   const nativeTouchGestureRef = useRef<{
     startX: number;
     startY: number;
@@ -1038,6 +1039,7 @@ export function ModularMapCanvas({
     };
 
     const beginNativePinch = (touches: TouchList) => {
+      suppressNextTapUntilRef.current = Date.now() + 600;
       const currentCamera = cameraRef.current ?? camera;
       const first = getTouchPoint(touches[0]);
       const second = getTouchPoint(touches[1]);
@@ -1073,6 +1075,7 @@ export function ModularMapCanvas({
       event.preventDefault();
 
       if (event.touches.length >= 2) {
+        suppressNextTapUntilRef.current = Date.now() + 600;
         beginNativePinch(event.touches);
         return;
       }
@@ -1202,6 +1205,7 @@ export function ModularMapCanvas({
         gesture &&
         !gesture.moved &&
         !gesture.pinching &&
+        Date.now() >= suppressNextTapUntilRef.current &&
         onCellClick
       ) {
         onCellClick(nativeTouchToGridCell(changedTouch));
@@ -1400,6 +1404,7 @@ export function ModularMapCanvas({
       activeTouchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
       if (activeTouchPointersRef.current.size >= 2) {
+        suppressNextTapUntilRef.current = Date.now() + 600;
         const currentCamera = cameraRef.current ?? camera;
         const points = Array.from(activeTouchPointersRef.current.values());
         const a = points[0];
@@ -1502,6 +1507,7 @@ export function ModularMapCanvas({
 
       // Pinch (2 dedos)
       if (pinchRef.current && activeTouchPointersRef.current.size >= 2) {
+        suppressNextTapUntilRef.current = Date.now() + 600;
         const points = Array.from(activeTouchPointersRef.current.values());
         const a = points[0];
         const b = points[1];
@@ -1566,7 +1572,8 @@ export function ModularMapCanvas({
       onCellClick &&
       event &&
       (isSpacePressed || editorState.activeTool === 'pan') &&
-      panStartPosRef.current
+      panStartPosRef.current &&
+      Date.now() >= suppressNextTapUntilRef.current
     ) {
       const dx = event.clientX - panStartPosRef.current.x;
       const dy = event.clientY - panStartPosRef.current.y;
