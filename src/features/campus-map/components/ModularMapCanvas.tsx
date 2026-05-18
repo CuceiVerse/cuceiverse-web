@@ -298,13 +298,6 @@ function getAvatarPose(
   }
 }
 
-function isTouchLikeEnvironment(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-  return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches;
-}
-
 function drawGridTile(
   graphics: Graphics,
   cell: GridCell,
@@ -660,7 +653,6 @@ export function ModularMapCanvas({
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [viewportSize, setViewportSize] = useState({ width: 1400, height: 820 });
-  const [isTouchLike, setIsTouchLike] = useState(() => isTouchLikeEnvironment());
 
   const didAutoFitRef = useRef(false);
   const lastAutoFitModeRef = useRef<NonNullable<Props['viewMode']> | undefined>(undefined);
@@ -888,33 +880,6 @@ export function ModularMapCanvas({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleWindowBlur);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const media = window.matchMedia('(pointer: coarse)');
-    const update = () => setIsTouchLike(media.matches || window.innerWidth <= 900);
-
-    update();
-
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', update);
-      window.addEventListener('resize', update);
-      return () => {
-        media.removeEventListener('change', update);
-        window.removeEventListener('resize', update);
-      };
-    }
-
-    media.addListener(update);
-    window.addEventListener('resize', update);
-    return () => {
-      media.removeListener(update);
-      window.removeEventListener('resize', update);
     };
   }, []);
 
