@@ -1151,7 +1151,7 @@ export function ModularReadOnlyMap() {
         </div>
 
         {/* --- ALWAYS VISIBLE HEADER --- */}
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-8 px-4 py-6 sm:px-8 sm:py-7">
+        <div className="relative z-10 flex flex-wrap items-start sm:items-center justify-between gap-5 px-5 py-6 sm:px-8 sm:py-7">
           {/* Clickable Title Area to toggle Navigation */}
           <button
             type="button"
@@ -1159,7 +1159,7 @@ export function ModularReadOnlyMap() {
             className="group flex flex-col gap-1.5 py-0.5 text-left transition-opacity hover:opacity-90"
             title="Desplegar/Ocultar controles de navegación"
           >
-            <p className="flex items-center gap-2 pl-1 text-[11px] font-bold uppercase tracking-[0.25em] leading-tight text-cyan-400/90">
+            <p className="flex items-center gap-2 pl-1 py-1 text-[11px] font-bold uppercase tracking-[0.25em] leading-normal text-cyan-400/90">
               CUCEIVERSE
             </p>
             <h1 className="flex items-center gap-3 text-xl font-black tracking-tight leading-tight text-white sm:text-2xl">
@@ -1233,7 +1233,7 @@ export function ModularReadOnlyMap() {
           className="relative z-10"
         >
           {/* Inner padding for formatting the dropdown content */}
-          <div className="border-t border-slate-700/50 px-10 py-5 sm:px-14 lg:px-16 sm:py-6 space-y-5">
+          <div className="border-t border-slate-700/50 px-6 pb-8 pt-6 sm:px-10 lg:px-12 sm:pb-10 sm:pt-7 space-y-6">
             {!navOpen ? null : (
               <p className="mb-2.5 text-[13px] text-slate-400">
                 Selecciona origen y destino para trazar una ruta caminable.
@@ -1326,7 +1326,7 @@ export function ModularReadOnlyMap() {
                 {layersOpen ? (
                   <div
                     id="map-layer-controls"
-                    className="relative z-20 mt-2 w-[min(19rem,100%)] rounded-xl border border-slate-600/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-xl shadow-slate-950/40"
+                    className="absolute left-0 top-full z-50 mt-2 w-[min(19rem,100%)] rounded-xl border border-slate-400/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-2xl shadow-black"
                   >
                     <label className="flex items-center gap-2">
                       <input
@@ -1394,7 +1394,7 @@ export function ModularReadOnlyMap() {
                 ) : null}
               </div>
               <div className="flex h-full flex-col gap-1.5 text-[13px] font-medium text-slate-300">
-                <span className="invisible text-[13px] font-medium text-slate-300 select-none">
+                <span className="hidden md:block invisible text-[13px] font-medium text-slate-300 select-none">
                   Acciones
                 </span>
                 <button
@@ -1433,11 +1433,8 @@ export function ModularReadOnlyMap() {
 
       {/* --- CONTENEDOR DEL MAPA ESTILIZADO CON VIÑETA MÁS SUAVE --- */}
       <div
-        className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
+        className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[inset_0_15px_30px_rgba(0,0,0,0.5),0_20px_50px_rgba(0,0,0,0.6)]"
       >
-
-        {/* Viñeta eliminada para mostrar el mapa sin sombreado */}
-
         <div className="relative z-0 h-full w-full">
           {isSyncing ? (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#030610]/80 backdrop-blur-md">
