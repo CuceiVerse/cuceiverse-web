@@ -1111,12 +1111,12 @@ export function ModularReadOnlyMap() {
   }, [waypoints, originId, pathCellsSet, traversableWithAsphaltSet]);
 
   return (
-    <section className="h-full flex flex-col p-3 sm:p-5 gap-4">
-      {/* --- NUEVO DISEÑO DEL HEADER (Sin overflow-hidden y clases seguras) --- */}
+    <section className="h-full flex flex-col p-4 sm:p-6 lg:p-8 gap-6">
+      {/* --- NUEVO DISEÑO DEL HEADER (Espaciado Holgado) --- */}
       <section className="relative flex flex-col rounded-[24px] border border-slate-700/60 bg-[#070E23]/80 backdrop-blur-xl shadow-2xl z-20">
         
         {/* HEADER TOP BAR */}
-        <div className="flex flex-wrap items-center justify-between gap-4 p-4 sm:p-6 border-b border-slate-700/40">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 sm:px-8 sm:py-6 border-b border-slate-700/40">
           
           {/* Logo & Title minimalista */}
           <div className="flex items-center">
@@ -1186,10 +1186,9 @@ export function ModularReadOnlyMap() {
             overflow: "visible", 
           }}
         >
-          {/* Se usa padding seguro general para evitar choques con bordes */}
-          <div className="p-4 sm:p-6 flex flex-col space-y-5">
+          <div className="px-6 py-6 sm:px-8 sm:py-7 flex flex-col space-y-6">
             {avatarIsMoving && (
-              <div className="flex items-center justify-between rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-2">
+              <div className="flex items-center justify-between rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-3">
                 <span className="text-xs font-medium text-rose-200">Avatar en movimiento...</span>
                 <button
                   type="button"
@@ -1201,16 +1200,16 @@ export function ModularReadOnlyMap() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-5 lg:gap-6 items-end">
               
               {/* Origen */}
-              <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
+              <label className="flex flex-col gap-2 text-[13px] font-medium text-slate-300 group">
                 Punto de partida
                 <div className="relative">
                   <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500/80 group-focus-within:text-cyan-400" />
                   <select
                     className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-8 text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 appearance-none"
-                    style={{ paddingLeft: '2.5rem' }} 
+                    style={{ paddingLeft: '2.75rem' }} 
                     value={originId}
                     onChange={(e) => {
                       setOriginId(e.target.value);
@@ -1233,13 +1232,13 @@ export function ModularReadOnlyMap() {
               </label>
 
               {/* Destino */}
-              <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
+              <label className="flex flex-col gap-2 text-[13px] font-medium text-slate-300 group">
                 Destino
                 <div className="relative">
                   <Flag size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/80 group-focus-within:text-emerald-400" />
                   <select
                     className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-8 text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 appearance-none"
-                    style={{ paddingLeft: '2.5rem' }} 
+                    style={{ paddingLeft: '2.75rem' }} 
                     value={destinationId}
                     onChange={(e) => {
                       setDestinationId(e.target.value);
@@ -1262,7 +1261,7 @@ export function ModularReadOnlyMap() {
               </label>
 
               {/* Filtros Dropdown */}
-              <div className="relative flex flex-col gap-1.5">
+              <div className="relative flex flex-col gap-2">
                 <span className="text-[13px] font-medium text-slate-300">Vista del mapa</span>
                 <button
                   type="button"
@@ -1280,9 +1279,9 @@ export function ModularReadOnlyMap() {
 
                 {/* Dropdown flotante */}
                 {layersOpen && (
-                  <div className="absolute left-0 top-[calc(100%+8px)] z-[100] w-[min(18rem,100vw)] rounded-xl border border-slate-600 bg-[#070E23] p-4 shadow-2xl shadow-black/80">
-                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Elementos visibles</p>
-                    <div className="flex flex-col gap-3">
+                  <div className="absolute left-0 top-[calc(100%+8px)] z-[100] w-[min(18rem,100vw)] rounded-xl border border-slate-600 bg-[#070E23] p-5 shadow-2xl shadow-black/80">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Elementos visibles</p>
+                    <div className="flex flex-col gap-4">
                       <label className="flex items-center gap-3 cursor-pointer">
                         <input type="checkbox" className="h-4 w-4 accent-cyan-500 bg-slate-800 border-slate-600 rounded" checked={visibility.buildings} onChange={(e) => { setVisibility((c) => ({ ...c, buildings: e.target.checked })); setRoutePath([]); }} />
                         <span className="text-sm text-slate-200">Edificios y Módulos</span>
@@ -1318,13 +1317,13 @@ export function ModularReadOnlyMap() {
             {routeError && <p className="text-xs font-medium text-rose-400">{routeError}</p>}
             
             {routePath.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
-                <div className="flex flex-col gap-0.5">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4">
+                <div className="flex flex-col gap-1">
                   <p className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Ruta establecida</p>
                   <p className="text-sm text-slate-300">{originLabel} → {destinationLabel}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-slate-400">Distancia aprox.</p>
+                  <p className="text-xs text-slate-400 mb-1">Distancia aprox.</p>
                   <p className="text-sm font-semibold text-emerald-300">{routeTileCount} celdas ({routeNetwork === "pasillos" ? "solo pasillos" : "mixta"})</p>
                 </div>
               </div>
