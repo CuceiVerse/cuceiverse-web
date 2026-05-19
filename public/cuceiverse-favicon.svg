@@ -1,0 +1,22 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="favBg" x1="72" y1="56" x2="440" y2="456" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="favBlue" x1="132" y1="104" x2="376" y2="392" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="favOrange" x1="194" y1="88" x2="314" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f59e0b"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+  </defs>
+  <rect x="44" y="44" width="424" height="424" rx="92" fill="url(#favBg)"/>
+  <path d="M154 160c26-32 66-52 102-52 64 0 116 52 116 116 0 64-52 116-116 116-36 0-76-20-102-52l34-34c17 20 39 34 68 34 38 0 70-32 70-70s-32-70-70-70c-29 0-51 14-68 34l-34-34Z" fill="url(#favBlue)"/>
+  <path d="M248 116h16v280h-16z" fill="url(#favOrange)"/>
+  <path d="M206 212h100c8.8 0 16 7.2 16 16v56c0 8.8-7.2 16-16 16H206c-8.8 0-16-7.2-16-16v-56c0-8.8 7.2-16 16-16Z" fill="#f8fafc" opacity="0.94"/>
+  <path d="M220 232h72c8.8 0 16 7.2 16 16v16c0 8.8-7.2 16-16 16h-72c-8.8 0-16-7.2-16-16v-16c0-8.8 7.2-16 16-16Z" fill="#0f172a" opacity="0.12"/>
+  <path d="M186 334c22 16 48 24 70 24s48-8 70-24l18 28c-27 20-57 30-88 30s-61-10-88-30l18-28Z" fill="url(#favOrange)"/>
+</svg>

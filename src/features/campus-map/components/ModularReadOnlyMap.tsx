@@ -841,12 +841,11 @@ export function ModularReadOnlyMap() {
     if (!figure) return;
 
     const stableDirections = [1, 2, 3];
-    const walkFrames = [0, 1, 2, 3];
 
     stableDirections.forEach((dir) => {
       const idleParams = new URLSearchParams({
         figure,
-        size: "n",
+        size: "s",
         direction: String(dir),
         head_direction: String(dir),
         action: "std",
@@ -856,19 +855,16 @@ export function ModularReadOnlyMap() {
       });
       new Image().src = `/habbo-api/render?${idleParams.toString()}`;
 
-      walkFrames.forEach((frame) => {
-        const walkParams = new URLSearchParams({
-          figure,
-          size: "n",
-          direction: String(dir),
-          head_direction: String(dir),
-          action: "wlk",
-          gesture: "std",
-          frame_num: String(frame),
-          img_format: "png",
-        });
-        new Image().src = `/habbo-api/render?${walkParams.toString()}`;
+      const walkParams = new URLSearchParams({
+        figure,
+        size: "n",
+        direction: String(dir),
+        head_direction: String(dir),
+        action: "wlk",
+        gesture: "std",
+        img_format: "gif",
       });
+      new Image().src = `/habbo-api/render?${walkParams.toString()}`;
     });
   }, [avatarFigure]);
 

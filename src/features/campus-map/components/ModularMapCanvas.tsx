@@ -1635,6 +1635,7 @@ export function ModularMapCanvas({
   const selectedBuildingId = editorState.selection?.kind === 'building' ? editorState.selection.id : null;
   const selectedPropId = editorState.selection?.kind === 'prop' ? editorState.selection.id : null;
   const renderCamera = cameraRef.current ?? camera;
+  const avatarIdleDirection = getAvatarIdleDirection(viewMode);
   const canvasCursorClass = isPanning
     ? 'modular-canvas-shell--grabbing'
     : (isSpacePressed || editorState.activeTool === 'pan')
@@ -1649,25 +1650,33 @@ export function ModularMapCanvas({
     }
 
     const pose = getAvatarPose(viewMode, avatarDirection, avatarIsMoving, avatarMotionFrameRef.current);
-    const nextSrc =
-      avatarFigure
-        ? resolveAvatarImage(avatarFigure, {
+    const nextMainSrc = avatarFigure
+      ? resolveAvatarImage(avatarFigure, {
           size: 'n',
           direction: pose.direction,
           headDirection: pose.direction,
           action: pose.action,
           gesture: 'std',
-          format: 'png',
-          frame: pose.frame,
+          format: pose.action === 'wlk' ? 'gif' : 'png',
         })
-        : avatarImageUrl ?? null;
+      : avatarImageUrl ?? null;
+    const nextBubbleSrc = avatarFigure
+      ? resolveAvatarImage(avatarFigure, {
+          size: 's',
+          direction: avatarIdleDirection,
+          headDirection: avatarIdleDirection,
+          action: 'std',
+          gesture: 'std',
+          format: 'png',
+        })
+      : avatarImageUrl ?? null;
 
     const mainTransform = `translate3d(-50%, -100%, 0) scaleX(${pose.mirror ? -1 : 1})`;
     const bubbleTransform = `scaleX(${pose.mirror ? -1 : 1})`;
 
     if (mainVisual instanceof HTMLImageElement) {
-      if (nextSrc && mainVisual.getAttribute('src') !== nextSrc) {
-        mainVisual.src = nextSrc;
+      if (nextMainSrc && mainVisual.getAttribute('src') !== nextMainSrc) {
+        mainVisual.src = nextMainSrc;
       }
       mainVisual.style.transform = mainTransform;
     } else if (mainVisual) {
@@ -1675,14 +1684,14 @@ export function ModularMapCanvas({
     }
 
     if (bubbleVisual instanceof HTMLImageElement) {
-      if (nextSrc && bubbleVisual.getAttribute('src') !== nextSrc) {
-        bubbleVisual.src = nextSrc;
+      if (nextBubbleSrc && bubbleVisual.getAttribute('src') !== nextBubbleSrc) {
+        bubbleVisual.src = nextBubbleSrc;
       }
       bubbleVisual.style.transform = bubbleTransform;
     } else if (bubbleVisual) {
       bubbleVisual.style.transform = 'scaleX(1)';
     }
-  }, [avatarDirection, avatarFigure, avatarImageUrl, avatarIsMoving, viewMode]);
+  }, [avatarDirection, avatarFigure, avatarIdleDirection, avatarImageUrl, avatarIsMoving, viewMode]);
 
   useEffect(() => {
     avatarMotionFrameRef.current = 0;
@@ -2365,7 +2374,7 @@ export function ModularMapCanvas({
         ref={pixiApplicationRef}
         resizeTo={viewportRef}
         antialias
-        backgroundColor={0xe6eef6}
+        backgroundColor={0xd9e0e8}
         resolution={DEVICE_PIXEL_RATIO}
         autoDensity
         powerPreference="high-performance"

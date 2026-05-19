@@ -142,9 +142,10 @@
     overflow: hidden;
     resize: none;
     background:
-        radial-gradient(circle at 15% 10%, rgba(255, 255, 255, 0.14), transparent 18%),
-        linear-gradient(180deg, #edf3f8 0%, #d6e0ea 100%);
-    border: 1px solid rgba(47, 64, 82, 0.12);
+        radial-gradient(circle at 15% 10%, rgba(255, 255, 255, 0.05), transparent 18%),
+        linear-gradient(180deg, rgba(233, 238, 245, 0.82) 0%, rgba(209, 218, 228, 0.92) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(47, 64, 82, 0.14);
 }
 
 .modular-canvas-shell>canvas {

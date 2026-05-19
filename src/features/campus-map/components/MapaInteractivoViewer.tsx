@@ -91,24 +91,33 @@ type CrowdVariant = 'student-blue' | 'student-red' | 'student-green';
 const campusTrees: Array<{ point: GridPoint; kind: TreeKind }> = [
   { point: { x: 7.4, y: 8.4 }, kind: 'palm' },
   { point: { x: 8.6, y: 16.1 }, kind: 'cypress' },
+  { point: { x: 9.8, y: 10.7 }, kind: 'bush' },
+  { point: { x: 11.2, y: 14.2 }, kind: 'palm' },
   { point: { x: 10.5, y: 36.2 }, kind: 'bush' },
+  { point: { x: 12.8, y: 38.6 }, kind: 'cypress' },
   { point: { x: 16.5, y: 41.4 }, kind: 'palm' },
   { point: { x: 24.4, y: 41.2 }, kind: 'cypress' },
+  { point: { x: 22.7, y: 39.5 }, kind: 'bush' },
+  { point: { x: 27.1, y: 40.9 }, kind: 'palm' },
   { point: { x: 36.5, y: 12.6 }, kind: 'palm' },
   { point: { x: 40.3, y: 21.4 }, kind: 'cypress' },
+  { point: { x: 38.1, y: 18.9 }, kind: 'bush' },
   { point: { x: 39.2, y: 34.8 }, kind: 'bush' },
   { point: { x: 32.2, y: 40.3 }, kind: 'palm' },
   { point: { x: 5.6, y: 27.8 }, kind: 'cypress' },
+  { point: { x: 6.9, y: 31.2 }, kind: 'bush' },
 ];
 
 const campusCrowd: Array<{ point: GridPoint; variant: CrowdVariant }> = [
   { point: { x: 12.3, y: 41.3 }, variant: 'student-blue' },
   { point: { x: 15.1, y: 38.2 }, variant: 'student-red' },
   { point: { x: 21.8, y: 26.7 }, variant: 'student-green' },
+  { point: { x: 20.4, y: 39.1 }, variant: 'student-blue' },
   { point: { x: 29.7, y: 18.5 }, variant: 'student-blue' },
   { point: { x: 31.1, y: 17.6 }, variant: 'student-red' },
   { point: { x: 8.9, y: 13.5 }, variant: 'student-green' },
   { point: { x: 26.1, y: 34.5 }, variant: 'student-blue' },
+  { point: { x: 35.7, y: 16.9 }, variant: 'student-green' },
 ];
 
 const campusSigns = [
