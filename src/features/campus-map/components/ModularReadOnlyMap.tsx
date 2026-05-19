@@ -1159,7 +1159,7 @@ export function ModularReadOnlyMap() {
             className="group flex flex-col gap-1.5 py-0.5 text-left transition-opacity hover:opacity-90"
             title="Desplegar/Ocultar controles de navegación"
           >
-            <p className="flex items-center gap-2 pl-1 py-1 text-[11px] font-bold uppercase tracking-[0.25em] leading-normal text-cyan-400/90">
+            <p className="flex items-center gap-2 pl-1 pt-2 pb-1 mt-1 text-[11px] font-bold uppercase tracking-[0.25em] leading-loose text-cyan-400/90">
               CUCEIVERSE
             </p>
             <h1 className="flex items-center gap-3 text-xl font-black tracking-tight leading-tight text-white sm:text-2xl">
@@ -1433,9 +1433,11 @@ export function ModularReadOnlyMap() {
 
       {/* --- CONTENEDOR DEL MAPA ESTILIZADO CON VIÑETA MÁS SUAVE --- */}
       <div
-        className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[inset_0_15px_30px_rgba(0,0,0,0.5),0_20px_50px_rgba(0,0,0,0.6)]"
+        className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
       >
         <div className="relative z-0 h-full w-full">
+          {/* Div superpuesto para la sombra interior */}
+          <div className="pointer-events-none absolute inset-0 z-[60] rounded-[28px] shadow-[inset_0_20px_40px_rgba(0,0,0,0.35)]" />
           {isSyncing ? (
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#030610]/80 backdrop-blur-md">
               <div className="flex flex-col items-center gap-4">
