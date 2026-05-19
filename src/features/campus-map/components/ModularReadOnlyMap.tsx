@@ -1120,7 +1120,7 @@ export function ModularReadOnlyMap() {
           className="relative z-10"
         >
           {/* Inner padding for formatting the dropdown content */}
-          <div className="border-t border-slate-700/50 px-4 py-4 sm:px-8 sm:py-5 space-y-4">
+          <div className="border-t border-slate-700/50 px-6 py-4 sm:px-10 lg:px-12 sm:py-5 space-y-4">
             {!navOpen ? null : (
               <p className="text-[13px] text-slate-400">
                 Selecciona origen y destino para trazar una ruta caminable.
