@@ -41,6 +41,25 @@ type VisibilityFilters = {
   decoration: boolean;
 };
 
+type WaypointCategoryId =
+  | 'buildings'
+  | 'bathrooms'
+  | 'food'
+  | 'parking'
+  | 'pois';
+
+type WaypointSelectOption = {
+  id: string;
+  label: string;
+  sortKey: string;
+};
+
+type WaypointSelectGroup = {
+  id: WaypointCategoryId;
+  label: string;
+  options: WaypointSelectOption[];
+};
+
 const EMPTY_BASE_SEED: ModularMapSeed = {
   schemaVersion: 'modular-map@1',
   mapId: 'cucei-main-campus',
@@ -185,6 +204,89 @@ function normalizeQuery(value: string): string {
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function formatWaypointLabel(label: string): string {
+  return label
+    .replace(/Móduo O/g, 'Módulo O')
+    .replace(/Módluo Y/g, 'Módulo Y')
+    .replace(/biciletas/g, 'bicicletas');
+}
+
+function getWaypointCategory(waypoint: MapWaypoint): WaypointCategoryId {
+  const normalizedLabel = normalizeQuery(waypoint.label);
+
+  if (waypoint.kind === 'building') {
+    return 'buildings';
+  }
+
+  if (
+    normalizedLabel.includes('banos') ||
+    normalizedLabel.includes('baños') ||
+    normalizedLabel.includes('bathroom')
+  ) {
+    return 'bathrooms';
+  }
+
+  if (
+    normalizedLabel.includes('cafeter') ||
+    normalizedLabel.includes('comida') ||
+    normalizedLabel.includes('cta')
+  ) {
+    return 'food';
+  }
+
+  if (
+    normalizedLabel.includes('estacionamiento') ||
+    normalizedLabel.includes('bicicleta') ||
+    normalizedLabel.includes('parking')
+  ) {
+    return 'parking';
+  }
+
+  return 'pois';
+}
+
+function buildWaypointSelectGroups(
+  waypoints: MapWaypoint[],
+): WaypointSelectGroup[] {
+  const categories: Record<WaypointCategoryId, WaypointSelectGroup> = {
+    buildings: { id: 'buildings', label: 'Edificios y Módulos', options: [] },
+    bathrooms: { id: 'bathrooms', label: 'Baños', options: [] },
+    food: { id: 'food', label: 'Comida y Cafeterías', options: [] },
+    parking: { id: 'parking', label: 'Estacionamientos', options: [] },
+    pois: {
+      id: 'pois',
+      label: 'Puntos de Interés / Auditorios',
+      options: [],
+    },
+  };
+
+  for (const waypoint of waypoints) {
+    const label = formatWaypointLabel(waypoint.label);
+    const category = getWaypointCategory(waypoint);
+    categories[category].options.push({
+      id: waypoint.id,
+      label,
+      sortKey: normalizeQuery(label),
+    });
+  }
+
+  return [
+    categories.buildings,
+    categories.bathrooms,
+    categories.food,
+    categories.parking,
+    categories.pois,
+  ]
+    .map((group) => ({
+      ...group,
+      options: group.options.sort((left, right) => {
+        const bySortKey = left.sortKey.localeCompare(right.sortKey, 'es');
+        return bySortKey !== 0 ? bySortKey : left.label.localeCompare(right.label, 'es');
+      }),
+    }))
+    .filter((group) => group.options.length > 0);
 }
 
 const VIEW_MODE_STORAGE_KEY = 'cuceiverse.map.viewMode';
@@ -502,6 +604,7 @@ export function ModularReadOnlyMap() {
     "pasillos",
   );
   const [navOpen, setNavOpen] = useState(true);
+  const [layersOpen, setLayersOpen] = useState(false);
   const [activeTrip, setActiveTrip] = useState<"navigation" | "manual" | null>(
     null,
   );
@@ -710,6 +813,16 @@ export function ModularReadOnlyMap() {
       ),
     };
   }, [configuredWaypoints, originId, destinationId]);
+
+  const originWaypointGroups = useMemo(
+    () => buildWaypointSelectGroups(filteredWaypoints.forOrigin),
+    [filteredWaypoints.forOrigin],
+  );
+
+  const destinationWaypointGroups = useMemo(
+    () => buildWaypointSelectGroups(filteredWaypoints.forDestination),
+    [filteredWaypoints.forDestination],
+  );
 
   const canvasViewerState = useMemo(() => {
     const nextBuildingsById = visibility.buildings
@@ -1038,18 +1151,18 @@ export function ModularReadOnlyMap() {
         </div>
 
         {/* --- ALWAYS VISIBLE HEADER --- */}
-        <div className="relative z-10 flex flex-wrap items-center justify-between gap-8 px-4 py-5 sm:px-8 sm:py-6">
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-8 px-4 py-6 sm:px-8 sm:py-7">
           {/* Clickable Title Area to toggle Navigation */}
           <button
             type="button"
             onClick={() => setNavOpen((prev) => !prev)}
-            className="group flex flex-col gap-1 text-left transition-opacity hover:opacity-90"
+            className="group flex flex-col gap-1.5 py-0.5 text-left transition-opacity hover:opacity-90"
             title="Desplegar/Ocultar controles de navegación"
           >
-            <p className="text-[11px] font-bold uppercase tracking-[0.25em] text-cyan-400/90 flex items-center gap-2 pl-1">
+            <p className="flex items-center gap-2 pl-1 text-[11px] font-bold uppercase tracking-[0.25em] leading-tight text-cyan-400/90">
               CUCEIVERSE
             </p>
-            <h1 className="text-xl font-black tracking-tight text-white sm:text-2xl flex items-center gap-3">
+            <h1 className="flex items-center gap-3 text-xl font-black tracking-tight leading-tight text-white sm:text-2xl">
               Mapa modular del campus
               <span
                 className="flex-none text-slate-400 transition-transform duration-300 group-hover:text-cyan-400"
@@ -1122,7 +1235,7 @@ export function ModularReadOnlyMap() {
           {/* Inner padding for formatting the dropdown content */}
           <div className="border-t border-slate-700/50 px-6 py-4 sm:px-10 lg:px-12 sm:py-5 space-y-4">
             {!navOpen ? null : (
-              <p className="text-[13px] text-slate-400">
+              <p className="mb-2.5 text-[13px] text-slate-400">
                 Selecciona origen y destino para trazar una ruta caminable.
               </p>
             )}
@@ -1147,10 +1260,14 @@ export function ModularReadOnlyMap() {
                     }}
                   >
                     <option value="">Selecciona...</option>
-                    {filteredWaypoints.forOrigin.map((wp) => (
-                      <option key={wp.id} value={wp.id}>
-                        {wp.label}
-                      </option>
+                    {originWaypointGroups.map((group) => (
+                      <optgroup key={group.id} label={group.label}>
+                        {group.options.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
@@ -1174,80 +1291,107 @@ export function ModularReadOnlyMap() {
                     }}
                   >
                     <option value="">Selecciona...</option>
-                    {filteredWaypoints.forDestination.map((wp) => (
-                      <option key={wp.id} value={wp.id}>
-                        {wp.label}
-                      </option>
+                    {destinationWaypointGroups.map((group) => (
+                      <optgroup key={group.id} label={group.label}>
+                        {group.options.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
               </label>
-              <div className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300">
-                Mostrar
-                <div className="rounded-xl border border-slate-600/50 bg-[#0c1631] px-4 py-2.5 text-sm text-slate-200">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-5 w-5"
-                      checked={visibility.buildings}
-                      onChange={(event) => {
-                        setVisibility((current) => ({
-                          ...current,
-                          buildings: event.target.checked,
-                        }));
-                        setRoutePath([]);
-                        setRouteTileCount(0);
-                        setRouteError(null);
-                      }}
+              <div className="relative flex flex-col gap-1.5 text-[13px] font-medium text-slate-300">
+                <span className="text-[13px] font-medium text-slate-300">
+                  Mostrar filtros
+                </span>
+                <button
+                  type="button"
+                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-600/50 bg-[#0c1631] px-4 py-2 text-left text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 hover:bg-[#0e1a3a] focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
+                  onClick={() => setLayersOpen((current) => !current)}
+                  aria-expanded={layersOpen}
+                  aria-controls="map-layer-controls"
+                >
+                  <span>Capas del mapa</span>
+                  <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                    {Object.values(visibility).filter(Boolean).length}/4
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform ${layersOpen ? 'rotate-180' : ''}`}
                     />
-                    <span>Edificios</span>
-                  </label>
-                  <label className="mt-1.5 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-5 w-5"
-                      checked={visibility.services}
-                      onChange={(event) => {
-                        setVisibility((current) => ({
-                          ...current,
-                          services: event.target.checked,
-                        }));
-                        setRoutePath([]);
-                        setRouteTileCount(0);
-                        setRouteError(null);
-                      }}
-                    />
-                    <span>Servicios (POIs)</span>
-                  </label>
-                  <label className="mt-1.5 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-5 w-5"
-                      checked={visibility.infrastructure}
-                      onChange={(event) => {
-                        setVisibility((current) => ({
-                          ...current,
-                          infrastructure: event.target.checked,
-                        }));
-                      }}
-                    />
-                    <span>Infraestructura</span>
-                  </label>
-                  <label className="mt-1.5 flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="h-5 w-5"
-                      checked={visibility.decoration}
-                      onChange={(event) => {
-                        setVisibility((current) => ({
-                          ...current,
-                          decoration: event.target.checked,
-                        }));
-                      }}
-                    />
-                    <span>Decoración</span>
-                  </label>
-                </div>
+                  </span>
+                </button>
+                {layersOpen ? (
+                  <div
+                    id="map-layer-controls"
+                    className="absolute left-0 top-full z-20 mt-2 w-[min(19rem,100%)] rounded-xl border border-slate-600/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-xl shadow-slate-950/40"
+                  >
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5"
+                        checked={visibility.buildings}
+                        onChange={(event) => {
+                          setVisibility((current) => ({
+                            ...current,
+                            buildings: event.target.checked,
+                          }));
+                          setRoutePath([]);
+                          setRouteTileCount(0);
+                          setRouteError(null);
+                        }}
+                      />
+                      <span>Edificios</span>
+                    </label>
+                    <label className="mt-1.5 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5"
+                        checked={visibility.services}
+                        onChange={(event) => {
+                          setVisibility((current) => ({
+                            ...current,
+                            services: event.target.checked,
+                          }));
+                          setRoutePath([]);
+                          setRouteTileCount(0);
+                          setRouteError(null);
+                        }}
+                      />
+                      <span>Servicios (POIs)</span>
+                    </label>
+                    <label className="mt-1.5 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5"
+                        checked={visibility.infrastructure}
+                        onChange={(event) => {
+                          setVisibility((current) => ({
+                            ...current,
+                            infrastructure: event.target.checked,
+                          }));
+                        }}
+                      />
+                      <span>Infraestructura</span>
+                    </label>
+                    <label className="mt-1.5 flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5"
+                        checked={visibility.decoration}
+                        onChange={(event) => {
+                          setVisibility((current) => ({
+                            ...current,
+                            decoration: event.target.checked,
+                          }));
+                        }}
+                      />
+                      <span>Decoración</span>
+                    </label>
+                  </div>
+                ) : null}
               </div>
               <div className="flex items-end">
                 <button
