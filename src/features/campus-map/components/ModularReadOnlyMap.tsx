@@ -1233,14 +1233,14 @@ export function ModularReadOnlyMap() {
           className="relative z-10"
         >
           {/* Inner padding for formatting the dropdown content */}
-          <div className="border-t border-slate-700/50 px-8 py-5 sm:px-12 lg:px-14 sm:py-6 space-y-5">
+          <div className="border-t border-slate-700/50 px-10 py-5 sm:px-14 lg:px-16 sm:py-6 space-y-5">
             {!navOpen ? null : (
               <p className="mb-2.5 text-[13px] text-slate-400">
                 Selecciona origen y destino para trazar una ruta caminable.
               </p>
             )}
 
-            <div className="grid grid-cols-1 gap-5 items-end md:grid-cols-[1fr_1fr_1fr_auto]">
+            <div className="grid grid-cols-1 gap-6 items-end md:grid-cols-[1fr_1fr_1fr_auto]">
               <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
                 Origen
                 <div className="relative">
@@ -1303,7 +1303,7 @@ export function ModularReadOnlyMap() {
                   </select>
                 </div>
               </label>
-              <div className="relative flex h-full flex-col gap-1.5 text-[13px] font-medium text-slate-300 md:pb-28 lg:pb-32">
+              <div className="relative flex h-full flex-col gap-1.5 text-[13px] font-medium text-slate-300">
                 <span className="text-[13px] font-medium text-slate-300">
                   Mostrar filtros
                 </span>
@@ -1326,7 +1326,7 @@ export function ModularReadOnlyMap() {
                 {layersOpen ? (
                   <div
                     id="map-layer-controls"
-                    className="absolute left-0 top-[calc(100%+0.5rem)] z-30 w-[min(19rem,100%)] rounded-xl border border-slate-600/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-xl shadow-slate-950/40"
+                    className="relative z-20 mt-2 w-[min(19rem,100%)] rounded-xl border border-slate-600/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-xl shadow-slate-950/40"
                   >
                     <label className="flex items-center gap-2">
                       <input
