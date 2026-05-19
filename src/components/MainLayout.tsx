@@ -180,11 +180,6 @@ export const MainLayout: React.FC = () => {
         </div>
 
         <div className="nav-actions" ref={menuRef}>
-          <div className="user-badge glass-panel">
-            <span className="status-dot"></span>
-            En línea
-          </div>
-
           <button
             className={`user-avatar-trigger ${menuOpen ? 'open' : ''}`}
             onClick={() => setMenuOpen((prev) => !prev)}
@@ -212,6 +207,39 @@ export const MainLayout: React.FC = () => {
                   </div>
                 </div>
               </header>
+
+              <div className="siiau-quick-actions">
+                <div className="user-badge glass-panel">
+                  <span className="status-dot"></span>
+                  En línea
+                </div>
+
+                {isAdmin ? (
+                  <NavLink
+                    to="/admin/mapa"
+                    className="siiau-action-button"
+                    onClick={() => {
+                      markNavStart('/admin/mapa');
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <Settings size={16} />
+                    <span>Editar mapa</span>
+                  </NavLink>
+                ) : null}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setIsLogoutModalOpen(true);
+                  }}
+                  className="siiau-action-button danger"
+                >
+                  <X size={16} />
+                  <span>Cerrar sesión</span>
+                </button>
+              </div>
 
               <div className="siiau-menu-body">
                 {offerState.status === 'loading' && (
@@ -260,12 +288,6 @@ export const MainLayout: React.FC = () => {
             </section>
           )}
 
-          <button
-            onClick={() => setIsLogoutModalOpen(true)}
-            className="logout-btn"
-          >
-            <span>Cerrar Sesión</span>
-          </button>
         </div>
       </nav>
 

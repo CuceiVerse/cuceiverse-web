@@ -739,7 +739,7 @@ export function MapaInteractivoViewer({ editor }: { editor?: EditorInterface } =
           <Application
             resizeTo={viewportRef}
             antialias={false}
-            backgroundColor={0xaadcf3}
+            backgroundColor={0xd8dee6}
             resolution={1}
             autoDensity
           >
