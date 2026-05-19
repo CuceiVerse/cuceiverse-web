@@ -46,10 +46,6 @@ export const LoginView: React.FC = () => {
     await doLogin(codigo, nip);
   };
 
-  const handleDemoAccess = async () => {
-    await doLogin('admin', 'admin123');
-  };
-
   return (
     <div className="login-container">
       <ParticlesBackground />
@@ -116,22 +112,6 @@ export const LoginView: React.FC = () => {
               </>
             )}
           </button>
-
-          {import.meta.env.DEV && (
-            <button
-              type="button"
-              className="submit-btn"
-              onClick={handleDemoAccess}
-              disabled={isLoading}
-              style={{ backgroundColor: 'rgba(34, 197, 94, 0.2)', borderColor: 'rgba(34, 197, 94, 0.5)' }}
-            >
-              {isLoading ? (
-                <Loader2 size={20} className="spinner" />
-              ) : (
-                <span>Acceso Demo (Desarrollo)</span>
-              )}
-            </button>
-          )}
         </form>
 
         <div className="login-footer">
