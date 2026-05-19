@@ -167,16 +167,6 @@ export const MainLayout: React.FC = () => {
             <User size={18} />
             <span>Habbo Avatar</span>
           </NavLink>
-          {isAdmin ? (
-            <NavLink
-              to="/admin/mapa"
-              className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-              onClick={() => markNavStart('/admin/mapa')}
-            >
-              <Settings size={18} />
-              <span>Editor Mapa</span>
-            </NavLink>
-          ) : null}
         </div>
 
         <div className="nav-actions" ref={menuRef}>
@@ -202,8 +192,8 @@ export const MainLayout: React.FC = () => {
                 <div className="siiau-user-title">
                   <GraduationCap size={18} />
                   <div>
-                    <strong>{userLabel}</strong>
-                    <span>{profile?.siiauCode ?? 'Sin codigo'}</span>
+                    <strong>{profile?.siiauCode ?? 'Sin codigo'}</strong>
+                    <span>{profile?.displayName ?? 'Alumno'}</span>
                   </div>
                 </div>
               </header>

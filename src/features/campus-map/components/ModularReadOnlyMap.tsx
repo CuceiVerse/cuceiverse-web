@@ -1133,11 +1133,11 @@ export function ModularReadOnlyMap() {
                 <div className="relative">
                   <MapPin
                     size={18}
-                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500/80 transition-colors group-focus-within:text-cyan-400"
+                    className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-cyan-500/80 transition-colors group-focus-within:text-cyan-400"
                   />
                   <select
                     className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 hover:bg-[#0e1a3a] focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
-                    style={{ paddingLeft: "2.75rem" }}
+                    style={{ paddingLeft: "3rem" }}
                     value={originId}
                     onChange={(event) => {
                       setOriginId(event.target.value);
@@ -1160,11 +1160,11 @@ export function ModularReadOnlyMap() {
                 <div className="relative">
                   <Flag
                     size={18}
-                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/80 transition-colors group-focus-within:text-emerald-400"
+                    className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-emerald-500/80 transition-colors group-focus-within:text-emerald-400"
                   />
                   <select
                     className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 hover:bg-[#0e1a3a] focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
-                    style={{ paddingLeft: "2.75rem" }}
+                    style={{ paddingLeft: "3rem" }}
                     value={destinationId}
                     onChange={(event) => {
                       setDestinationId(event.target.value);
