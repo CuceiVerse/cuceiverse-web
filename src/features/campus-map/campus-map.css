@@ -147,6 +147,12 @@
     border: 1px solid rgba(47, 64, 82, 0.12);
 }
 
+.modular-canvas-shell>canvas {
+    display: block;
+    width: 100% !important;
+    height: 100% !important;
+}
+
 .modular-canvas-shell--tool {
     cursor: crosshair;
 }

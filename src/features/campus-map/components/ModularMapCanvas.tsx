@@ -1,5 +1,6 @@
 ﻿import { Application, extend } from '@pixi/react';
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import type { ApplicationRef } from '@pixi/react';
 import {
   useCallback,
   useEffect,
@@ -597,6 +598,7 @@ export function ModularMapCanvas({
   const templateBuildingAlpha = devUnderlayTexture && devUnderlayVisible ? 0.75 : 1;
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const pixiApplicationRef = useRef<ApplicationRef | null>(null);
   const avatarOverlayRef = useRef<HTMLDivElement | null>(null);
   const avatarVisualRef = useRef<HTMLElement | null>(null);
   const avatarBubbleRef = useRef<HTMLDivElement | null>(null);
@@ -937,6 +939,25 @@ export function ModularMapCanvas({
       observer.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    const app = pixiApplicationRef.current?.getApplication();
+    const viewport = viewportRef.current;
+    if (!app || !viewport) {
+      return;
+    }
+
+    app.resizeTo = viewport;
+    app.resize();
+
+    const frameId = window.requestAnimationFrame(() => {
+      pixiApplicationRef.current?.getApplication()?.resize();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [viewportSize.width, viewportSize.height]);
 
   useEffect(() => {
     // Auto-fit only on first layout (or when switching view mode).
@@ -2384,6 +2405,7 @@ export function ModularMapCanvas({
       ) : null}
 
       <Application
+        ref={pixiApplicationRef}
         resizeTo={viewportRef}
         antialias
         backgroundColor={0xe6eef6}
