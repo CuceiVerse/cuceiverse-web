@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Flag, MapPin, Plus, Minus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Flag, Layers, MapPin, Plus, Minus } from 'lucide-react';
 
 import { useAuth } from '../../../context/useAuth';
 import { fetchModularMapLayout } from '../api/mapaAdmin';
@@ -639,11 +639,10 @@ export function ModularReadOnlyMap() {
 
   const statusLabel = useMemo(() => {
     const normalized = status.toLowerCase();
-    if (normalized.includes('cargando')) return 'Sincronizando mapa...';
-    if (normalized.includes('seed local')) return 'Modo local activo';
-    // Mostrar versión corta y amigable cuando se indica que el mapa fue actualizado
-    if (normalized.includes('mapa actualizado') || normalized.includes('cargado desde filesystem')) return 'Actualizado hoy';
-    return 'Mapa listo';
+    if (normalized.includes('cargando')) return 'Sincronizando...';
+    if (normalized.includes('seed local')) return 'Modo local';
+    if (normalized.includes('mapa actualizado') || normalized.includes('cargado desde filesystem')) return 'Actualizado';
+    return 'Listo';
   }, [status]);
 
   useEffect(() => {
@@ -693,7 +692,6 @@ export function ModularReadOnlyMap() {
     window.localStorage.setItem(VIEW_MODE_STORAGE_KEY, viewMode);
   }, [viewMode]);
 
-  // Load user avatar from profile
   useEffect(() => {
     if (!token) {
       setUserAvatarUrl(null);
@@ -729,11 +727,8 @@ export function ModularReadOnlyMap() {
     [layout],
   );
 
-  // ── Waypoints unificados: servicios etiquetados del mapa + edificios ───────
   const waypoints = useMemo<MapWaypoint[]>(() => {
     const result: MapWaypoint[] = [];
-
-    // 1) Props de servicio con etiqueta (POIs, baños, etc.)
     if (visibility.services) {
       for (const prop of layout.props) {
         if (!SERVICE_PROP_KINDS.has(prop.kind as PropKind)) continue;
@@ -747,13 +742,10 @@ export function ModularReadOnlyMap() {
         });
       }
     }
-
-    // 2) Edificios creados en el editor (con nombre)
     if (visibility.buildings) {
       for (const building of layout.buildings) {
         const label = building.name.trim();
         if (!label) continue;
-        // Calcular celda centroide del primer bloque
         const anchor = building.blocks[0]?.anchor ?? { x: 0, y: 0 };
         result.push({
           id: `building::${building.id}`,
@@ -763,7 +755,6 @@ export function ModularReadOnlyMap() {
         });
       }
     }
-
     return result;
   }, [
     layout.props,
@@ -773,7 +764,6 @@ export function ModularReadOnlyMap() {
   ]);
 
   const validWaypointIds = useMemo(() => {
-    // Solo incluir ubicaciones configuradas en el área actualmente activa del mapa.
     const areaKeys = new Set(Object.keys(viewerState.areaCellsByKey));
     return new Set(
       waypoints
@@ -833,26 +823,20 @@ export function ModularReadOnlyMap() {
     const nextPropsById: Record<string, MapProp> = {};
     for (const [id, prop] of Object.entries(viewerState.propsById)) {
       const kind = prop.kind as PropKind;
-
       if (SERVICE_PROP_KINDS.has(kind)) {
         if (visibility.services) nextPropsById[id] = prop;
         continue;
       }
-
       if (INFRA_PROP_KINDS.has(kind)) {
         if (visibility.infrastructure) nextPropsById[id] = prop;
         continue;
       }
-
       if (DECOR_PROP_KINDS.has(kind)) {
         if (visibility.decoration) nextPropsById[id] = prop;
         continue;
       }
-
-      // Por defecto, tratamos props desconocidos como decoración.
       if (visibility.decoration) nextPropsById[id] = prop;
     }
-
     return {
       ...viewerState,
       buildingsById: nextBuildingsById,
@@ -861,7 +845,6 @@ export function ModularReadOnlyMap() {
     };
   }, [viewerState, visibility]);
 
-  // Celdas ocupadas por edificios (colisión)
   const buildingOccupiedCellsSet = useMemo(() => {
     const set = new Set<string>();
     for (const building of Object.values(viewerState.buildingsById)) {
@@ -872,7 +855,6 @@ export function ModularReadOnlyMap() {
     return set;
   }, [viewerState.buildingsById]);
 
-  // Set de celdas de pasillo para el A* (excluye edificios)
   const pathCellsSet = useMemo(() => {
     const set = new Set(Object.keys(viewerState.pathsByCell));
     for (const blocked of buildingOccupiedCellsSet) {
@@ -881,7 +863,6 @@ export function ModularReadOnlyMap() {
     return set;
   }, [viewerState.pathsByCell, buildingOccupiedCellsSet]);
 
-  // ── Avatar on map (needs pathCellsSet) ──────────────────────────────
   const {
     position: avatarGridPos,
     positionRef: avatarPositionRef,
@@ -895,7 +876,6 @@ export function ModularReadOnlyMap() {
     originCell: GridCell,
     destinationCell: GridCell,
   ): { path: GridCell[]; network: WalkNetwork } | null {
-    // 1) Intento principal: solo pasillos
     const snappedOrigin = snapToPathTile(originCell, pathCellsSet);
     const snappedDest = snapToPathTile(destinationCell, pathCellsSet);
     const pathOnly =
@@ -905,8 +885,6 @@ export function ModularReadOnlyMap() {
     if (pathOnly.length >= 2) {
       return { path: pathOnly, network: "pasillos" };
     }
-
-    // 2) Fallback: pasillos + asfalto
     const snappedOriginMixed = snapToPathTile(
       originCell,
       traversableWithAsphaltSet,
@@ -948,13 +926,10 @@ export function ModularReadOnlyMap() {
     return resolved ?? undefined;
   }, [avatarIdleDirection, userAvatarUrl]);
 
-  // Pre-load all avatar variations for the current user to avoid lag during walking
   useEffect(() => {
     const figure = avatarFigure;
     if (!figure) return;
-
     const stableDirections = [1, 2, 3];
-
     stableDirections.forEach((dir) => {
       const idleParams = new URLSearchParams({
         figure,
@@ -981,7 +956,6 @@ export function ModularReadOnlyMap() {
     });
   }, [avatarFigure]);
 
-  // El asfalto puede funcionar como fallback de tránsito cuando no hay conexión por pasillos.
   const asphaltCellsSet = useMemo(() => {
     const set = new Set<string>();
     for (const prop of Object.values(viewerState.propsById)) {
@@ -997,7 +971,6 @@ export function ModularReadOnlyMap() {
     for (const key of asphaltCellsSet) {
       merged.add(key);
     }
-    // Los edificios bloquean tránsito incluso sobre asfalto/pasillos
     for (const blocked of buildingOccupiedCellsSet) {
       merged.delete(blocked);
     }
@@ -1013,7 +986,6 @@ export function ModularReadOnlyMap() {
     setManualRoutePath([]);
     setRouteTileCount(0);
     setRouteNetwork("pasillos");
-
     setRouteLoading(true);
 
     const resolvedOriginCell =
@@ -1030,7 +1002,7 @@ export function ModularReadOnlyMap() {
     if (!resolved) {
       setRouteLoading(false);
       setRouteError(
-        "No se encontró ruta caminable (pasillos/asfalto). Verifica conectividad.",
+        "No se encontró ruta caminable. Verifica conectividad.",
       );
       return;
     }
@@ -1051,14 +1023,11 @@ export function ModularReadOnlyMap() {
     setRoutePath(withPoiCenters);
     setRouteTileCount(path.length);
     setRouteLoading(false);
-
-    // Hacer que el avatar siga automáticamente el trazado.
     setActiveTrip("navigation");
     walkAvatarPath(path);
   }
 
   function handleAvatarCellClick(targetCell: GridCell) {
-    // Movimiento manual: trazar la ruta en azul y hacer que el avatar la siga.
     setRouteError(null);
     setManualRoutePath([]);
 
@@ -1142,67 +1111,45 @@ export function ModularReadOnlyMap() {
   }, [waypoints, originId, pathCellsSet, traversableWithAsphaltSet]);
 
   return (
-    <section className="modular-read-shell h-full flex flex-col p-3 sm:p-6 gap-4 overflow-hidden">
-      {/* --- ENCABEZADO Y PANEL DE NAVEGACIÓN COMBINADOS --- */}
-      <section className="glass-panel relative flex flex-col rounded-[28px] border border-slate-700/50 bg-[#070E23]/95 shadow-[0_20px_45px_rgba(2,6,23,0.45)] overflow-hidden">
-        {/* Decorative background blur */}
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-10 top-0 h-40 w-40 rounded-full bg-cyan-500/10 blur-[50px]" />
-        </div>
-
-        {/* --- ALWAYS VISIBLE HEADER --- */}
-        <div className="relative z-10 flex flex-wrap items-start sm:items-center justify-between gap-5 px-5 py-6 sm:px-8 sm:py-7">
-          {/* Clickable Title Area to toggle Navigation */}
-          <button
-            type="button"
-            onClick={() => setNavOpen((prev) => !prev)}
-            className="group flex flex-col gap-1.5 py-0.5 text-left transition-opacity hover:opacity-90 overflow-visible"
-            title="Desplegar/Ocultar controles de navegación"
-          >
-            <p className="flex items-center gap-2 pl-1 pt-1.5 pb-0.5 text-[11px] font-bold uppercase tracking-[0.25em] text-cyan-400/90" style={{ lineHeight: '1.2' }}>
-              CUCEIVERSE
-            </p>
-            <h1 className="flex items-center gap-3 text-xl font-black tracking-tight leading-tight text-white sm:text-2xl">
-              Mapa modular del campus
-              <span
-                className="flex-none text-slate-400 transition-transform duration-300 group-hover:text-cyan-400"
-                style={{
-                  transform: navOpen ? "rotate(180deg)" : "rotate(0deg)",
-                }}
-              >
-                <ChevronDown size={22} />
+    <section className="h-full flex flex-col p-3 sm:p-5 gap-4">
+      {/* --- NUEVO DISEÑO DEL HEADER (Sin overflow-hidden) --- */}
+      <section className="relative flex flex-col rounded-[24px] border border-slate-700/60 bg-[#070E23]/80 backdrop-blur-xl shadow-2xl z-20">
+        
+        {/* HEADER TOP BAR */}
+        <div className="flex flex-wrap items-center justify-between gap-4 p-5 sm:px-6 border-b border-slate-700/40">
+          
+          {/* Logo & Title */}
+          <div className="flex items-center gap-4">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/20 flex-shrink-0">
+              <MapPin className="text-white" size={22} />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-cyan-400 leading-none mb-1">
+                CUCEIVERSE
               </span>
-            </h1>
-          </button>
+              <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-none">
+                Mapa Modular
+              </h1>
+            </div>
+          </div>
 
-          {/* Controls Area (Status & View Toggle) */}
-          <div className="flex flex-wrap items-center gap-4">
-            <span
-              className="flex items-center gap-2.5 rounded-full border border-slate-700/60 bg-[#0c1631] px-4 py-2 text-[12px] font-medium text-slate-300 shadow-sm"
+          {/* Right Controls */}
+          <div className="flex items-center gap-3">
+            <div
+              className="hidden sm:flex items-center gap-2 rounded-full bg-slate-900/50 border border-slate-700/60 px-3 py-1.5"
               title={statusLabel}
             >
               <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
-              {statusLabel}
-            </span>
+              <span className="text-[11px] font-medium text-slate-300">{statusLabel}</span>
+            </div>
 
-            {avatarIsMoving ? (
+            <div className="flex items-center rounded-full border border-slate-600/50 bg-slate-900/80 p-1">
               <button
                 type="button"
-                className="h-9 rounded-full border border-rose-500/40 bg-rose-950/30 px-4 text-[11px] font-extrabold uppercase tracking-wider text-rose-200 transition hover:bg-rose-950/50"
-                onClick={handleCancelTrip}
-                title="Detener trayecto"
-              >
-                Cancelar
-              </button>
-            ) : null}
-
-            <div className="inline-flex items-center rounded-full border border-slate-600/50 bg-slate-900/80 p-1 shadow-inner">
-              <button
-                type="button"
-                className={`min-w-[100px] rounded-full px-3 py-2 text-xs font-bold transition-all ${
+                className={`min-w-[80px] rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
                   viewMode === "isometric"
                     ? "bg-cyan-500 text-cyan-950 shadow-[0_0_15px_rgba(34,211,238,0.4)]"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
+                    : "text-slate-400 hover:text-white"
                 }`}
                 onClick={() => setViewMode("isometric")}
               >
@@ -1210,244 +1157,195 @@ export function ModularReadOnlyMap() {
               </button>
               <button
                 type="button"
-                className={`min-w-[72px] rounded-full px-3 py-2 text-xs font-bold transition-all ${
+                className={`min-w-[60px] rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
                   viewMode === "2d"
                     ? "bg-emerald-500 text-emerald-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
+                    : "text-slate-400 hover:text-white"
                 }`}
                 onClick={() => setViewMode("2d")}
               >
                 2D
               </button>
             </div>
+
+            <button
+              type="button"
+              className="ml-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700/50"
+              onClick={() => setNavOpen(!navOpen)}
+              title={navOpen ? "Ocultar controles" : "Mostrar controles"}
+            >
+              {navOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
           </div>
         </div>
 
-        {/* --- COLLAPSIBLE NAVIGATION BODY --- */}
+        {/* COLLAPSIBLE FORM BODY */}
         <div
           style={{
-            maxHeight: navOpen ? "min(70vh, 640px)" : "0px",
-            transition: "max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-            overflow: "hidden",
+            maxHeight: navOpen ? "800px" : "0px",
+            opacity: navOpen ? 1 : 0,
+            transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
+            overflow: "visible", // <--- CLAVE PARA EL DROPDOWN
           }}
-          className="relative z-10"
         >
-          {/* Inner padding for formatting the dropdown content */}
-          <div className="border-t border-slate-700/50 px-6 pb-8 pt-6 sm:px-10 lg:px-12 sm:pb-10 sm:pt-7 space-y-6">
-            {!navOpen ? null : (
-              <p className="mb-2.5 text-[13px] text-slate-400">
-                Selecciona origen y destino para trazar una ruta caminable.
-              </p>
+          <div className="p-5 sm:p-6 flex flex-col gap-5">
+            {avatarIsMoving && (
+              <div className="flex items-center justify-between rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-2">
+                <span className="text-xs font-medium text-rose-200">Avatar en movimiento...</span>
+                <button
+                  type="button"
+                  className="text-[11px] font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300"
+                  onClick={handleCancelTrip}
+                >
+                  Detener
+                </button>
+              </div>
             )}
 
-            <div className="grid grid-cols-1 gap-6 items-end md:grid-cols-[1fr_1fr_1fr_auto]">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-4 items-end">
+              
+              {/* Origen */}
               <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
-                Origen
+                Punto de partida
                 <div className="relative">
-                  <MapPin
-                    size={18}
-                    className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-cyan-500/80 transition-colors group-focus-within:text-cyan-400"
-                  />
+                  <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500/80 group-focus-within:text-cyan-400" />
                   <select
-                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 hover:bg-[#0e1a3a] focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
-                    style={{ paddingLeft: "3rem" }}
+                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 pl-11 text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 appearance-none"
                     value={originId}
-                    onChange={(event) => {
-                      setOriginId(event.target.value);
+                    onChange={(e) => {
+                      setOriginId(e.target.value);
                       setRoutePath([]);
                       setRouteTileCount(0);
                       setRouteError(null);
                     }}
                   >
-                    <option value="">Selecciona...</option>
+                    <option value="">Seleccionar origen...</option>
                     {originWaypointGroups.map((group) => (
                       <optgroup key={group.id} label={group.label}>
                         {group.options.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
+                          <option key={option.id} value={option.id}>{option.label}</option>
                         ))}
                       </optgroup>
                     ))}
                   </select>
+                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
               </label>
+
+              {/* Destino */}
               <label className="flex flex-col gap-1.5 text-[13px] font-medium text-slate-300 group">
                 Destino
                 <div className="relative">
-                  <Flag
-                    size={18}
-                    className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-emerald-500/80 transition-colors group-focus-within:text-emerald-400"
-                  />
+                  <Flag size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/80 group-focus-within:text-emerald-400" />
                   <select
-                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 hover:bg-[#0e1a3a] focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20"
-                    style={{ paddingLeft: "3rem" }}
+                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 pl-11 text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 appearance-none"
                     value={destinationId}
-                    onChange={(event) => {
-                      setDestinationId(event.target.value);
+                    onChange={(e) => {
+                      setDestinationId(e.target.value);
                       setRoutePath([]);
                       setRouteTileCount(0);
                       setRouteError(null);
                     }}
                   >
-                    <option value="">Selecciona...</option>
+                    <option value="">Seleccionar destino...</option>
                     {destinationWaypointGroups.map((group) => (
                       <optgroup key={group.id} label={group.label}>
                         {group.options.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
+                          <option key={option.id} value={option.id}>{option.label}</option>
                         ))}
                       </optgroup>
                     ))}
                   </select>
+                  <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
               </label>
-              <div className="relative flex h-full flex-col gap-1.5 text-[13px] font-medium text-slate-300">
-                <span className="text-[13px] font-medium text-slate-300">
-                  Mostrar filtros
-                </span>
+
+              {/* Filtros Dropdown */}
+              <div className="relative flex flex-col gap-1.5">
+                <span className="text-[13px] font-medium text-slate-300">Vista del mapa</span>
                 <button
                   type="button"
-                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-600/50 bg-[#0c1631] px-4 py-2 text-left text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 hover:bg-[#0e1a3a] focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20"
-                  onClick={() => setLayersOpen((current) => !current)}
-                  aria-expanded={layersOpen}
-                  aria-controls="map-layer-controls"
+                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-600/50 bg-[#0c1631] px-4 py-2 text-sm text-slate-200 hover:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
+                  onClick={() => setLayersOpen(!layersOpen)}
                 >
-                  <span>Capas del mapa</span>
-                  <span className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  <span className="flex items-center gap-2">
+                    <Layers size={16} className="text-slate-400" />
+                    Capas activas
+                  </span>
+                  <span className="text-xs font-bold text-cyan-400">
                     {Object.values(visibility).filter(Boolean).length}/4
-                    <ChevronDown
-                      size={14}
-                      className={`transition-transform ${layersOpen ? 'rotate-180' : ''}`}
-                    />
                   </span>
                 </button>
-                {layersOpen ? (
-                  <div
-                    id="map-layer-controls"
-                    className="absolute left-0 bottom-full z-50 mb-2 w-[min(19rem,100%)] rounded-xl border border-slate-400/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-[0_-15px_30px_rgba(0,0,0,0.5)]"
-                  >
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5"
-                        checked={visibility.buildings}
-                        onChange={(event) => {
-                          setVisibility((current) => ({
-                            ...current,
-                            buildings: event.target.checked,
-                          }));
-                          setRoutePath([]);
-                          setRouteTileCount(0);
-                          setRouteError(null);
-                        }}
-                      />
-                      <span>Edificios</span>
-                    </label>
-                    <label className="mt-1.5 flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5"
-                        checked={visibility.services}
-                        onChange={(event) => {
-                          setVisibility((current) => ({
-                            ...current,
-                            services: event.target.checked,
-                          }));
-                          setRoutePath([]);
-                          setRouteTileCount(0);
-                          setRouteError(null);
-                        }}
-                      />
-                      <span>Servicios (POIs)</span>
-                    </label>
-                    <label className="mt-1.5 flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5"
-                        checked={visibility.infrastructure}
-                        onChange={(event) => {
-                          setVisibility((current) => ({
-                            ...current,
-                            infrastructure: event.target.checked,
-                          }));
-                        }}
-                      />
-                      <span>Infraestructura</span>
-                    </label>
-                    <label className="mt-1.5 flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        className="h-5 w-5"
-                        checked={visibility.decoration}
-                        onChange={(event) => {
-                          setVisibility((current) => ({
-                            ...current,
-                            decoration: event.target.checked,
-                          }));
-                        }}
-                      />
-                      <span>Decoración</span>
-                    </label>
+
+                {/* El dropdown vuela libre hacia abajo gracias a overflow: visible */}
+                {layersOpen && (
+                  <div className="absolute left-0 top-[calc(100%+8px)] z-[100] w-[min(18rem,100vw)] rounded-xl border border-slate-600 bg-[#070E23] p-4 shadow-2xl shadow-black/80">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Elementos visibles</p>
+                    <div className="flex flex-col gap-3">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 accent-cyan-500 bg-slate-800 border-slate-600 rounded" checked={visibility.buildings} onChange={(e) => { setVisibility((c) => ({ ...c, buildings: e.target.checked })); setRoutePath([]); }} />
+                        <span className="text-sm text-slate-200">Edificios y Módulos</span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 accent-cyan-500 bg-slate-800 border-slate-600 rounded" checked={visibility.services} onChange={(e) => { setVisibility((c) => ({ ...c, services: e.target.checked })); setRoutePath([]); }} />
+                        <span className="text-sm text-slate-200">Servicios (POIs)</span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 accent-cyan-500 bg-slate-800 border-slate-600 rounded" checked={visibility.infrastructure} onChange={(e) => setVisibility((c) => ({ ...c, infrastructure: e.target.checked }))} />
+                        <span className="text-sm text-slate-200">Infraestructura y Vías</span>
+                      </label>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" className="h-4 w-4 accent-cyan-500 bg-slate-800 border-slate-600 rounded" checked={visibility.decoration} onChange={(e) => setVisibility((c) => ({ ...c, decoration: e.target.checked }))} />
+                        <span className="text-sm text-slate-200">Vegetación y Decoración</span>
+                      </label>
+                    </div>
                   </div>
-                ) : null}
+                )}
               </div>
-              <div className="flex h-full flex-col gap-1.5 text-[13px] font-medium text-slate-300">
-                <span className="hidden md:block invisible text-[13px] font-medium text-slate-300 select-none">
-                  Acciones
-                </span>
-                <button
-                  type="button"
-                  className="h-11 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.5)] disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 disabled:shadow-none md:min-w-[170px]"
-                  disabled={!canRoute || routeLoading}
-                  onClick={handleComputeRoute}
-                >
-                  {routeLoading ? "Calculando..." : "Trazar ruta"}
-                </button>
-              </div>
+
+              {/* Action Button */}
+              <button
+                type="button"
+                className="h-11 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 disabled:shadow-none lg:min-w-[140px]"
+                disabled={!canRoute || routeLoading}
+                onClick={handleComputeRoute}
+              >
+                {routeLoading ? "Calculando..." : "Trazar ruta"}
+              </button>
             </div>
 
-            {routeError ? (
-              <p className="text-xs text-rose-400">{routeError}</p>
-            ) : null}
-            {routePath.length > 0 ? (
-              <div className="rounded-xl border border-emerald-700/50 bg-emerald-950/30 p-4 space-y-1 text-sm mt-4">
-                <p className="font-semibold text-emerald-300">
-                  Ruta trazada — {routeTileCount} celdas (
-                  {routeNetwork === "pasillos"
-                    ? "solo pasillos"
-                    : "pasillos + asfalto"}
-                  )
-                </p>
-                <p className="text-slate-400 text-xs">
-                  {originLabel}
-                  {" → "}
-                  {destinationLabel}
-                </p>
+            {routeError && <p className="text-xs font-medium text-rose-400">{routeError}</p>}
+            
+            {routePath.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3">
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Ruta establecida</p>
+                  <p className="text-sm text-slate-300">{originLabel} → {destinationLabel}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-400">Distancia aprox.</p>
+                  <p className="text-sm font-semibold text-emerald-300">{routeTileCount} celdas ({routeNetwork === "pasillos" ? "solo pasillos" : "mixta"})</p>
+                </div>
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       </section>
 
-      {/* --- CONTENEDOR DEL MAPA ESTILIZADO CON VIÑETA MÁS SUAVE --- */}
-      <div
-        className="relative flex-1 overflow-hidden rounded-[28px] border border-slate-700/50 bg-[#030610] shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
-      >
+      {/* --- CONTENEDOR DEL MAPA --- */}
+      <div className="relative flex-1 rounded-[24px] border border-slate-700/50 bg-[#030610] shadow-2xl overflow-hidden z-0">
         <div className="relative z-0 h-full w-full">
-          {/* Div superpuesto para la sombra interior */}
-          <div className="pointer-events-none absolute inset-0 z-[60] rounded-[28px] shadow-[inset_0_20px_40px_rgba(0,0,0,0.35)]" />
-          {isSyncing ? (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#030610]/80 backdrop-blur-md">
+          {isSyncing && (
+            <div className="absolute inset-0 z-[80] flex items-center justify-center bg-[#030610]/80 backdrop-blur-md">
               <div className="flex flex-col items-center gap-4">
                 <div className="h-10 w-10 animate-spin rounded-full border-4 border-cyan-500/20 border-t-cyan-400" />
                 <p className="text-sm font-bold tracking-widest text-cyan-400 uppercase">
-                  Sincronizando satélite...
+                  Sincronizando...
                 </p>
               </div>
             </div>
-          ) : null}
+          )}
+          
           <ModularMapCanvas
             editorState={canvasViewerState}
             onDropPaletteItem={() => undefined}
@@ -1477,27 +1375,25 @@ export function ModularReadOnlyMap() {
           />
 
           {/* Floating zoom controls (top-right) */}
-          <div className="absolute top-4 right-4 z-40 flex flex-col gap-2">
+          <div className="absolute top-4 right-4 z-[90] flex flex-col gap-2">
             <button
               type="button"
               onClick={() => zoomControllerRef.current?.zoomIn()}
-              title="Acercar"
-              className="h-10 w-10 rounded-full bg-slate-900/80 text-white shadow-lg flex items-center justify-center hover:brightness-110"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900/80 border border-slate-700 text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-slate-800"
             >
-              <Plus size={16} />
+              <Plus size={18} />
             </button>
             <button
               type="button"
               onClick={() => zoomControllerRef.current?.zoomOut()}
-              title="Alejar"
-              className="h-10 w-10 rounded-full bg-slate-900/80 text-white shadow-lg flex items-center justify-center hover:brightness-110"
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900/80 border border-slate-700 text-white shadow-lg backdrop-blur-sm transition-colors hover:bg-slate-800"
             >
-              <Minus size={16} />
+              <Minus size={18} />
             </button>
           </div>
 
-          {/* Sombra interior movida al FINAL para que PixiJS no la tape */}
-          <div className="pointer-events-none absolute inset-0 z-[100] rounded-[28px] shadow-[inset_0_20px_40px_rgba(0,0,0,0.7)]" />
+          {/* Sombra de viñeta forzada AL FINAL del DOM */}
+          <div className="pointer-events-none absolute inset-0 z-[100] rounded-[24px] shadow-[inset_0_20px_40px_rgba(0,0,0,0.5)]" />
         </div>
       </div>
     </section>
