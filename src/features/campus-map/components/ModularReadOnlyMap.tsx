@@ -1112,19 +1112,17 @@ export function ModularReadOnlyMap() {
 
   return (
     <section className="h-full flex flex-col p-3 sm:p-5 gap-4">
-      {/* --- NUEVO DISEÑO DEL HEADER (Sin overflow-hidden) --- */}
+      {/* --- NUEVO DISEÑO DEL HEADER (Sin overflow-hidden y clases seguras) --- */}
       <section className="relative flex flex-col rounded-[24px] border border-slate-700/60 bg-[#070E23]/80 backdrop-blur-xl shadow-2xl z-20">
         
         {/* HEADER TOP BAR */}
-        <div className="flex flex-wrap items-center justify-between gap-4 p-5 sm:px-6 border-b border-slate-700/40">
+        <div className="flex flex-wrap items-center justify-between gap-4 p-4 sm:p-6 border-b border-slate-700/40">
           
-          {/* Logo & Title */}
-          <div className="flex items-center gap-4">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/20 flex-shrink-0">
-              <MapPin className="text-white" size={22} />
-            </div>
+          {/* Logo & Title minimalista */}
+          <div className="flex items-center">
             <div className="flex flex-col">
-              <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-cyan-400 leading-none mb-1">
+              <span className="flex items-center text-[10px] font-bold uppercase tracking-[0.3em] text-cyan-400 leading-none mb-1.5">
+                <MapPin size={12} style={{ marginRight: '6px' }} />
                 CUCEIVERSE
               </span>
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight leading-none">
@@ -1185,10 +1183,11 @@ export function ModularReadOnlyMap() {
             maxHeight: navOpen ? "800px" : "0px",
             opacity: navOpen ? 1 : 0,
             transition: "all 0.35s cubic-bezier(0.4, 0, 0.2, 1)",
-            overflow: "visible", // <--- CLAVE PARA EL DROPDOWN
+            overflow: "visible", 
           }}
         >
-          <div className="p-5 sm:p-6 flex flex-col gap-5">
+          {/* Se usa padding seguro general para evitar choques con bordes */}
+          <div className="p-4 sm:p-6 flex flex-col space-y-5">
             {avatarIsMoving && (
               <div className="flex items-center justify-between rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-2">
                 <span className="text-xs font-medium text-rose-200">Avatar en movimiento...</span>
@@ -1210,7 +1209,8 @@ export function ModularReadOnlyMap() {
                 <div className="relative">
                   <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500/80 group-focus-within:text-cyan-400" />
                   <select
-                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 pl-11 text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 appearance-none"
+                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-8 text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 appearance-none"
+                    style={{ paddingLeft: '2.5rem' }} 
                     value={originId}
                     onChange={(e) => {
                       setOriginId(e.target.value);
@@ -1238,7 +1238,8 @@ export function ModularReadOnlyMap() {
                 <div className="relative">
                   <Flag size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/80 group-focus-within:text-emerald-400" />
                   <select
-                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-4 pl-11 text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 appearance-none"
+                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-8 text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 appearance-none"
+                    style={{ paddingLeft: '2.5rem' }} 
                     value={destinationId}
                     onChange={(e) => {
                       setDestinationId(e.target.value);
@@ -1268,16 +1269,16 @@ export function ModularReadOnlyMap() {
                   className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-600/50 bg-[#0c1631] px-4 py-2 text-sm text-slate-200 hover:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
                   onClick={() => setLayersOpen(!layersOpen)}
                 >
-                  <span className="flex items-center gap-2">
-                    <Layers size={16} className="text-slate-400" />
+                  <span className="flex items-center">
+                    <Layers size={16} className="text-slate-400" style={{ marginRight: '8px' }} />
                     Capas activas
                   </span>
-                  <span className="text-xs font-bold text-cyan-400">
+                  <span className="text-xs font-bold text-cyan-400" style={{ marginLeft: '8px' }}>
                     {Object.values(visibility).filter(Boolean).length}/4
                   </span>
                 </button>
 
-                {/* El dropdown vuela libre hacia abajo gracias a overflow: visible */}
+                {/* Dropdown flotante */}
                 {layersOpen && (
                   <div className="absolute left-0 top-[calc(100%+8px)] z-[100] w-[min(18rem,100vw)] rounded-xl border border-slate-600 bg-[#070E23] p-4 shadow-2xl shadow-black/80">
                     <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Elementos visibles</p>
