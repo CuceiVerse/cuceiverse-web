@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/useAuth";
-import { LogIn, User, Lock, ArrowRight, Loader2 } from "lucide-react";
+import { User, Lock, ArrowRight, Loader2 } from "lucide-react";
 import { ParticlesBackground } from "../components/ParticlesBackground";
 import { loginWithCodigoNip } from "../features/auth/api/auth";
 import { SIIAU_LAST_NIP_STORAGE_KEY } from "../features/siiau/api/siiau";
@@ -53,7 +53,7 @@ export const LoginView: React.FC = () => {
       <div className="login-content animate-fade-in">
         <div className="login-header">
           <div className="logo-container">
-            <LogIn size={32} className="logo-icon" />
+            <img src="/CUCEI-APP.png" alt="CUCEI App" className="logo-image" />
           </div>
           <h1>CuceiVerse</h1>
           <p>Bienvenido al Metaverso Estudiantil</p>

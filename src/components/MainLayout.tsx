@@ -103,7 +103,7 @@ export const MainLayout: React.FC = () => {
       <nav className="navbar glass-panel flex-none">
         <div className="nav-brand">
           <div className="nav-logo" aria-label="CUCEI">
-            <img src="/cuceiverse-logo.svg" alt="CuceiVerse" />
+            <img src="/CUCEI-APP.png" alt="CUCEI App" />
           </div>
           <h2>CUCEIVERSE</h2>
         </div>
