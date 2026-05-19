@@ -1326,7 +1326,7 @@ export function ModularReadOnlyMap() {
                 {layersOpen ? (
                   <div
                     id="map-layer-controls"
-                    className="absolute left-0 top-full z-20 mt-2 w-[min(19rem,100%)] rounded-xl border border-slate-600/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-xl shadow-slate-950/40"
+                    className="relative z-20 mt-2 w-[min(19rem,100%)] rounded-xl border border-slate-600/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-xl shadow-slate-950/40"
                   >
                     <label className="flex items-center gap-2">
                       <input
@@ -1393,7 +1393,10 @@ export function ModularReadOnlyMap() {
                   </div>
                 ) : null}
               </div>
-              <div className="flex h-full items-end">
+              <div className="flex h-full flex-col gap-1.5 text-[13px] font-medium text-slate-300">
+                <span className="invisible text-[13px] font-medium text-slate-300 select-none">
+                  Acciones
+                </span>
                 <button
                   type="button"
                   className="h-11 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.5)] disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 disabled:shadow-none md:min-w-[170px]"
