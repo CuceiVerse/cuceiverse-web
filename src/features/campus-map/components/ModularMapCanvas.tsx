@@ -106,6 +106,11 @@ type Props = {
    * Used by read-only views to refit after async seed/layout loading.
    */
   layoutVersionKey?: string;
+  /**
+   * Forces the camera to refit when the viewport changes.
+   * Useful for read-only mobile layouts where browser chrome can resize the canvas.
+   */
+  autoRefitOnViewportResize?: boolean;
 };
 
 const DROP_MIME = 'application/x-cuceiverse-map-item';
@@ -294,13 +299,6 @@ function getAvatarPose(
   }
 }
 
-function isTouchLikeEnvironment(): boolean {
-  if (typeof window === 'undefined') {
-    return false;
-  }
-  return window.matchMedia('(pointer: coarse)').matches || window.matchMedia('(hover: none)').matches;
-}
-
 function drawGridTile(
   graphics: Graphics,
   cell: GridCell,
@@ -479,6 +477,7 @@ export function ModularMapCanvas({
   templateUnderlayEnabled = false,
   controllerRef,
   layoutVersionKey,
+  autoRefitOnViewportResize = false,
 }: Props) {
   const didNotifyFirstFrameRef = useRef(false);
   const showTemplateUnderlay =
@@ -636,6 +635,7 @@ export function ModularMapCanvas({
     initialWorldY: number;
   } | null>(null);
   const lastNativeTouchAtRef = useRef(0);
+  const suppressNextTapUntilRef = useRef(0);
   const nativeTouchGestureRef = useRef<{
     startX: number;
     startY: number;
@@ -654,12 +654,12 @@ export function ModularMapCanvas({
   const [hoverCell, setHoverCell] = useState<GridCell | null>(null);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
-  const [viewportSize, setViewportSize] = useState({ width: 1400, height: 820 });
-  const [isTouchLike, setIsTouchLike] = useState(() => isTouchLikeEnvironment());
+    const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   const didAutoFitRef = useRef(false);
   const lastAutoFitModeRef = useRef<NonNullable<Props['viewMode']> | undefined>(undefined);
   const lastAutoFitLayoutKeyRef = useRef<string | undefined>(layoutVersionKey);
+  const lastAutoFitViewportKeyRef = useRef<string | undefined>(undefined);
 
   const applyCameraTransform = useCallback((nextCamera: EditorCamera) => {
     cameraRef.current = nextCamera;
@@ -886,33 +886,6 @@ export function ModularMapCanvas({
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const media = window.matchMedia('(pointer: coarse)');
-    const update = () => setIsTouchLike(media.matches || window.innerWidth <= 900);
-
-    update();
-
-    if (typeof media.addEventListener === 'function') {
-      media.addEventListener('change', update);
-      window.addEventListener('resize', update);
-      return () => {
-        media.removeEventListener('change', update);
-        window.removeEventListener('resize', update);
-      };
-    }
-
-    media.addListener(update);
-    window.addEventListener('resize', update);
-    return () => {
-      media.removeListener(update);
-      window.removeEventListener('resize', update);
-    };
-  }, []);
-
-  useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) {
       return;
@@ -929,10 +902,18 @@ export function ModularMapCanvas({
 
     updateSize();
     frameId = window.requestAnimationFrame(updateSize);
-    const observer = new ResizeObserver(updateSize);
-    observer.observe(viewport);
+      // Medir múltiples veces en RAF para capturar cambios de layout en móvil
+      let frame2 = window.requestAnimationFrame(() => {
+        updateSize();
+        frame2 = window.requestAnimationFrame(updateSize);
+      });
+      const observer = new ResizeObserver(updateSize);
+      observer.observe(viewport);
 
     return () => {
+        if (frame2) {
+          window.cancelAnimationFrame(frame2);
+        }
       if (frameId) {
         window.cancelAnimationFrame(frameId);
       }
@@ -971,7 +952,7 @@ export function ModularMapCanvas({
     // paint (e.g. 0x0 or very small values). Wait until the viewport has a
     // reasonable size before performing the initial auto-fit so a later
     // ResizeObserver update can still trigger the fit.
-    const MIN_VIEWPORT_DIM = 120;
+      const MIN_VIEWPORT_DIM = 50;
     if (viewportSize.width < MIN_VIEWPORT_DIM || viewportSize.height < MIN_VIEWPORT_DIM) {
       return;
     }
@@ -980,16 +961,21 @@ export function ModularMapCanvas({
     const layoutChanged =
       layoutVersionKey !== undefined &&
       lastAutoFitLayoutKeyRef.current !== layoutVersionKey;
-    if (!didAutoFitRef.current || modeChanged || layoutChanged) {
+    const viewportKey = `${viewportSize.width}x${viewportSize.height}`;
+    const viewportChanged = lastAutoFitViewportKeyRef.current !== viewportKey;
+
+    if (!didAutoFitRef.current || modeChanged || layoutChanged || (autoRefitOnViewportResize && viewportChanged)) {
       const nextCamera = fitCameraToBounds(viewportSize, campusBounds);
       applyCameraTransform(nextCamera);
       setCamera(nextCamera);
       didAutoFitRef.current = true;
       lastAutoFitModeRef.current = viewMode;
       lastAutoFitLayoutKeyRef.current = layoutVersionKey;
+      lastAutoFitViewportKeyRef.current = viewportKey;
     }
   }, [
     applyCameraTransform,
+    autoRefitOnViewportResize,
     viewportSize.width,
     viewportSize.height,
     viewMode,
@@ -1059,6 +1045,7 @@ export function ModularMapCanvas({
     };
 
     const beginNativePinch = (touches: TouchList) => {
+      suppressNextTapUntilRef.current = Date.now() + 600;
       const currentCamera = cameraRef.current ?? camera;
       const first = getTouchPoint(touches[0]);
       const second = getTouchPoint(touches[1]);
@@ -1094,6 +1081,7 @@ export function ModularMapCanvas({
       event.preventDefault();
 
       if (event.touches.length >= 2) {
+        suppressNextTapUntilRef.current = Date.now() + 600;
         beginNativePinch(event.touches);
         return;
       }
@@ -1223,6 +1211,7 @@ export function ModularMapCanvas({
         gesture &&
         !gesture.moved &&
         !gesture.pinching &&
+        Date.now() >= suppressNextTapUntilRef.current &&
         onCellClick
       ) {
         onCellClick(nativeTouchToGridCell(changedTouch));
@@ -1421,6 +1410,7 @@ export function ModularMapCanvas({
       activeTouchPointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
       if (activeTouchPointersRef.current.size >= 2) {
+        suppressNextTapUntilRef.current = Date.now() + 600;
         const currentCamera = cameraRef.current ?? camera;
         const points = Array.from(activeTouchPointersRef.current.values());
         const a = points[0];
@@ -1523,6 +1513,7 @@ export function ModularMapCanvas({
 
       // Pinch (2 dedos)
       if (pinchRef.current && activeTouchPointersRef.current.size >= 2) {
+        suppressNextTapUntilRef.current = Date.now() + 600;
         const points = Array.from(activeTouchPointersRef.current.values());
         const a = points[0];
         const b = points[1];
@@ -1587,7 +1578,8 @@ export function ModularMapCanvas({
       onCellClick &&
       event &&
       (isSpacePressed || editorState.activeTool === 'pan') &&
-      panStartPosRef.current
+      panStartPosRef.current &&
+      Date.now() >= suppressNextTapUntilRef.current
     ) {
       const dx = event.clientX - panStartPosRef.current.x;
       const dy = event.clientY - panStartPosRef.current.y;
@@ -2275,41 +2267,6 @@ export function ModularMapCanvas({
       onDragOver={handleDragOver}
       onContextMenu={(event) => event.preventDefault()}
     >
-      {isTouchLike ? (
-        <div className="pointer-events-none absolute inset-x-4 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-30 flex flex-col items-end gap-3 sm:hidden">
-          <div className="pointer-events-auto rounded-2xl border border-slate-700/70 bg-slate-950/90 px-3 py-2 text-[11px] font-medium text-slate-200 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
-            <div className="font-semibold uppercase tracking-widest text-cyan-300">Controles táctiles</div>
-            <div>Arrastra con un dedo para mover.</div>
-            <div>Pellizca para zoom. Usa +/- o el botón centro para recentrar.</div>
-          </div>
-          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-slate-700/70 bg-slate-950/95 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.35)] backdrop-blur">
-            <button
-              type="button"
-              onClick={() => zoomCamera(0.85)}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white transition-transform duration-150 active:scale-95"
-              aria-label="Acercar mapa"
-            >
-              +
-            </button>
-            <button
-              type="button"
-              onClick={resetCamera}
-              className="flex h-11 min-w-24 items-center justify-center rounded-full border border-cyan-500/40 bg-cyan-500 px-4 text-[11px] font-black uppercase tracking-widest text-cyan-950 shadow-[0_0_18px_rgba(34,211,238,0.14)] transition-transform duration-150 active:scale-95"
-              aria-label="Recentrar mapa"
-            >
-              Centro
-            </button>
-            <button
-              type="button"
-              onClick={() => zoomCamera(1 / 0.85)}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-lg font-black text-white transition-transform duration-150 active:scale-95"
-              aria-label="Alejar mapa"
-            >
-              −
-            </button>
-          </div>
-        </div>
-      ) : null}
       {devUnderlayTexture ? (
         <div className="absolute right-3 top-36 z-20 rounded-xl border border-slate-700/60 bg-[#030610]/80 px-3 py-2 text-xs text-slate-200 backdrop-blur">
           <div className="flex items-center justify-between gap-2">

@@ -98,11 +98,13 @@ export const MainLayout: React.FC = () => {
   }, [token]);
 
   return (
-    <div className="layout-container h-screen w-screen flex flex-col overflow-hidden bg-slate-950">
+    <div className="layout-container flex flex-col overflow-hidden bg-slate-950">
       {/* Shared Top Navigation Bar */}
       <nav className="navbar glass-panel flex-none">
         <div className="nav-brand">
-          <div className="nav-logo"></div>
+          <div className="nav-logo" aria-label="CUCEI">
+            <img src="/CUCEI-LOGO.png" alt="CUCEI" />
+          </div>
           <h2>CUCEIVERSE</h2>
         </div>
 

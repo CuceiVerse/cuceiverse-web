@@ -477,11 +477,6 @@ export const AvatarsView: React.FC = () => {
                   )}
                 </div>
 
-                <div className="figure-box glass-panel">
-                  <span className="figure-label">Figura actual</span>
-                  <span>{figure || "Sin definir"}</span>
-                </div>
-
                 <div className="quick-actions">
                   <button
                     className="action-btn primary"

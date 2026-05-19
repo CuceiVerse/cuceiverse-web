@@ -8,7 +8,7 @@ import { clearPerfMark, setPerfMark } from "../lib/perfMarks";
 import "./LoginView.css";
 
 export const LoginView: React.FC = () => {
-  const { login } = useAuth();
+  const { login, sessionNotice } = useAuth();
   const [codigo, setCodigo] = useState("");
   const [nip, setNip] = useState("");
   const [error, setError] = useState("");
@@ -60,6 +60,12 @@ export const LoginView: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="login-form glass-panel">
+          {sessionNotice && (
+            <div className="session-banner" role="alert" aria-live="assertive">
+              {sessionNotice}
+            </div>
+          )}
+
           {error && <div className="error-message">{error}</div>}
 
           <div className="input-group">
