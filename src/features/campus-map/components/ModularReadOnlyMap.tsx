@@ -1303,7 +1303,7 @@ export function ModularReadOnlyMap() {
                   </select>
                 </div>
               </label>
-              <div className="relative flex flex-col gap-1.5 text-[13px] font-medium text-slate-300">
+              <div className="relative flex h-full flex-col gap-1.5 text-[13px] font-medium text-slate-300">
                 <span className="text-[13px] font-medium text-slate-300">
                   Mostrar filtros
                 </span>
@@ -1393,7 +1393,7 @@ export function ModularReadOnlyMap() {
                   </div>
                 ) : null}
               </div>
-              <div className="flex items-end">
+              <div className="flex h-full items-end">
                 <button
                   type="button"
                   className="h-11 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-cyan-400 hover:shadow-[0_0_30px_rgba(34,211,238,0.5)] disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 disabled:shadow-none md:min-w-[170px]"
