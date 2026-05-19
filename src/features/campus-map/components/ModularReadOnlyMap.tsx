@@ -1156,10 +1156,10 @@ export function ModularReadOnlyMap() {
           <button
             type="button"
             onClick={() => setNavOpen((prev) => !prev)}
-            className="group flex flex-col gap-1.5 py-0.5 text-left transition-opacity hover:opacity-90"
+            className="group flex flex-col gap-1.5 py-0.5 text-left transition-opacity hover:opacity-90 overflow-visible"
             title="Desplegar/Ocultar controles de navegación"
           >
-            <p className="flex items-center gap-2 pl-1 pt-2 pb-1 mt-1 text-[11px] font-bold uppercase tracking-[0.25em] leading-loose text-cyan-400/90">
+            <p className="flex items-center gap-2 pl-1 pt-1.5 pb-0.5 text-[11px] font-bold uppercase tracking-[0.25em] text-cyan-400/90" style={{ lineHeight: '1.2' }}>
               CUCEIVERSE
             </p>
             <h1 className="flex items-center gap-3 text-xl font-black tracking-tight leading-tight text-white sm:text-2xl">
@@ -1326,7 +1326,7 @@ export function ModularReadOnlyMap() {
                 {layersOpen ? (
                   <div
                     id="map-layer-controls"
-                    className="absolute left-0 top-full z-50 mt-2 w-[min(19rem,100%)] rounded-xl border border-slate-400/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-2xl shadow-black"
+                    className="absolute left-0 bottom-full z-50 mb-2 w-[min(19rem,100%)] rounded-xl border border-slate-400/50 bg-[#0c1631] p-4 text-sm text-slate-200 shadow-[0_-15px_30px_rgba(0,0,0,0.5)]"
                   >
                     <label className="flex items-center gap-2">
                       <input
@@ -1495,6 +1495,9 @@ export function ModularReadOnlyMap() {
               <Minus size={16} />
             </button>
           </div>
+
+          {/* Sombra interior movida al FINAL para que PixiJS no la tape */}
+          <div className="pointer-events-none absolute inset-0 z-[100] rounded-[28px] shadow-[inset_0_20px_40px_rgba(0,0,0,0.7)]" />
         </div>
       </div>
     </section>
