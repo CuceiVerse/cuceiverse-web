@@ -186,8 +186,8 @@
 }
 
 .nav-avatar-circle img {
-  width: 132%;
-  height: 132%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   object-position: center;
   image-rendering: pixelated;
@@ -235,15 +235,6 @@
   display: block;
   font-size: 0.78rem;
   color: var(--muted-foreground);
-}
-
-.siiau-menu-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-  max-height: min(60vh, 520px);
-  overflow-y: auto;
-  padding-right: 0.2rem;
 }
 
 .siiau-quick-actions {

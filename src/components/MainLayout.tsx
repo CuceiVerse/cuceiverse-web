@@ -29,7 +29,7 @@ const CampusAssistantWidget = lazy(() =>
 
 export const MainLayout: React.FC = () => {
   const { logout, isAdmin, token } = useAuth();
-  const { state: offerState, resetAcademicOffer } = useAcademicOffer();
+  const { resetAcademicOffer } = useAcademicOffer();
   const [profile, setProfile] = useState<AuthUser | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navMenuOpen, setNavMenuOpen] = useState(false);
@@ -239,51 +239,6 @@ export const MainLayout: React.FC = () => {
                   <X size={16} />
                   <span>Cerrar sesión</span>
                 </button>
-              </div>
-
-              <div className="siiau-menu-body">
-                {offerState.status === 'loading' && (
-                  <div className="siiau-loading-screen animate-fade-in">
-                    <div className="loading-content">
-                      <div className="av-spinner-ring">
-                        <div className="inner-ring"></div>
-                      </div>
-                      <h2>Sincronizando</h2>
-                      <p>Consultando informacion academica en SIIAU...</p>
-                      <div className="loading-bar">
-                        <div className="loading-bar-fill"></div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {offerState.status === 'idle' && (
-                  <p className="siiau-error">
-                    La oferta academica aun no fue cargada. Abre Oferta Academica para sincronizar.
-                  </p>
-                )}
-
-                {offerState.status === 'error' && offerState.error && (
-                  <p className="siiau-error">{offerState.error}</p>
-                )}
-
-                {offerState.snapshot && (
-                  <div className="siiau-data-block">
-                    <div className="siiau-stats">
-                      <span>Total materias: {offerState.snapshot.stats.total_courses}</span>
-                      <span>Con horario: {offerState.snapshot.stats.with_schedule}</span>
-                    </div>
-                    <div className="siiau-courses-list">
-                      {offerState.snapshot.courses.slice(0, 10).map((course) => (
-                        <article key={`${course.nrc}-${course.clave}`}>
-                          <strong>{course.materia}</strong>
-                          <span>{course.clave} • NRC {course.nrc}</span>
-                          <span>{course.profesor || 'Profesor por definir'}</span>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </section>
           )}
