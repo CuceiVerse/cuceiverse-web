@@ -365,7 +365,7 @@ export function CampusAssistantWidget() {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-[calc(1.5rem+env(safe-area-inset-right))] z-[1199] flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500 text-cyan-950 shadow-[0_10px_35px_rgba(8,145,178,0.25)] transition-all hover:scale-110 active:scale-95"
+        className="hidden fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-[calc(1.5rem+env(safe-area-inset-right))] z-[1199] flex h-16 w-16 items-center justify-center rounded-full bg-cyan-500 text-cyan-950 shadow-[0_10px_35px_rgba(8,145,178,0.25)] transition-all hover:scale-110 active:scale-95"
         aria-label="Abrir asistente universitario"
       >
         <MessageCircle size={28} />
