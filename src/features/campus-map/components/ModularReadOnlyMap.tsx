@@ -1131,35 +1131,35 @@ export function ModularReadOnlyMap() {
             </div>
           </div>
 
-          {/* Right Controls */}
-          <div className="flex items-center gap-3">
+      {/* Right Controls */}
+          <div className="flex items-center gap-2 sm:gap-3">
             
             {avatarIsMoving && (
               <button
                 type="button"
                 onClick={handleCancelTrip}
-                className="flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-950/40 px-3 py-1.5 transition-colors hover:bg-rose-900/60 hover:border-rose-400/60"
+                className="flex h-9 items-center gap-2 rounded-full border border-rose-500/30 bg-rose-500/10 px-4 transition-colors hover:bg-rose-500/20 hover:border-rose-500/50"
                 title="Detener avatar"
               >
-                <div className="h-1.5 w-1.5 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.8)] animate-pulse" />
-                <span className="text-[11px] font-bold text-rose-300 uppercase tracking-wider">Detener</span>
+                <div className="h-2 w-2 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)] animate-pulse" />
+                <span className="text-xs font-bold text-rose-200 uppercase tracking-wide">Detener</span>
               </button>
             )}
 
             <div
-              className="hidden sm:flex items-center gap-2 rounded-full bg-slate-900/50 border border-slate-700/60 px-3 py-1.5"
+              className="hidden sm:flex h-9 items-center gap-2 rounded-full border border-slate-700/50 bg-slate-800/60 px-4"
               title={statusLabel}
             >
-              <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
-              <span className="text-[11px] font-medium text-slate-300">{statusLabel}</span>
+              <div className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse" />
+              <span className="text-xs font-medium text-slate-300">{statusLabel}</span>
             </div>
 
-            <div className="flex items-center rounded-full border border-slate-600/50 bg-slate-900/80 p-1">
+            <div className="flex h-9 items-center rounded-full border border-slate-700/50 bg-slate-800/60 p-0.5">
               <button
                 type="button"
-                className={`min-w-[80px] rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
+                className={`h-full min-w-[80px] rounded-full px-3 text-xs font-bold transition-all ${
                   viewMode === "isometric"
-                    ? "bg-cyan-500 text-cyan-950 shadow-[0_0_15px_rgba(34,211,238,0.4)]"
+                    ? "bg-cyan-500 text-cyan-950 shadow-[0_0_12px_rgba(34,211,238,0.3)]"
                     : "text-slate-400 hover:text-white"
                 }`}
                 onClick={() => setViewMode("isometric")}
@@ -1168,9 +1168,9 @@ export function ModularReadOnlyMap() {
               </button>
               <button
                 type="button"
-                className={`min-w-[60px] rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
+                className={`h-full min-w-[60px] rounded-full px-3 text-xs font-bold transition-all ${
                   viewMode === "2d"
-                    ? "bg-emerald-500 text-emerald-950 shadow-[0_0_15px_rgba(16,185,129,0.4)]"
+                    ? "bg-emerald-500 text-emerald-950 shadow-[0_0_12px_rgba(16,185,129,0.3)]"
                     : "text-slate-400 hover:text-white"
                 }`}
                 onClick={() => setViewMode("2d")}
@@ -1181,14 +1181,13 @@ export function ModularReadOnlyMap() {
 
             <button
               type="button"
-              className="ml-2 flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700/50"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/50 bg-slate-800/60 text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
               onClick={() => setNavOpen(!navOpen)}
               title={navOpen ? "Ocultar controles" : "Mostrar controles"}
             >
               {navOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </button>
           </div>
-        </div>
 
         {/* COLLAPSIBLE FORM BODY */}
         <div
