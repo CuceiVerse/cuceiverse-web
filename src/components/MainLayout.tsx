@@ -334,7 +334,7 @@ export const MainLayout: React.FC = () => {
         <Outlet />
       </main>
 
-      {location.pathname !== '/tramites' ? (
+      {location.pathname !== '/tramites' && location.pathname !== '/map' ? (
         <Suspense fallback={null}>
           <CampusAssistantWidget />
         </Suspense>
