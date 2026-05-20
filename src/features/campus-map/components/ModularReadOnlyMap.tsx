@@ -1131,7 +1131,7 @@ export function ModularReadOnlyMap() {
             </div>
           </div>
 
-      {/* Right Controls */}
+          {/* Right Controls */}
           <div className="flex items-center gap-2 sm:gap-3">
             
             {avatarIsMoving && (
@@ -1188,6 +1188,7 @@ export function ModularReadOnlyMap() {
               {navOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
             </button>
           </div>
+        </div>
 
         {/* COLLAPSIBLE FORM BODY */}
         <div
@@ -1200,16 +1201,19 @@ export function ModularReadOnlyMap() {
         >
           <div className="px-6 py-6 sm:px-8 sm:py-7 flex flex-col space-y-6">
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-5 lg:gap-6 items-end">
+            <div 
+              className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto] gap-8 items-end" 
+              style={{ gap: '2rem' }} 
+            >
               
               {/* Origen */}
-              <label className="flex flex-col gap-2 text-[13px] font-medium text-slate-300 group">
+              <label className="flex flex-col gap-3 text-[13px] font-medium text-slate-300 group" style={{ minWidth: '200px' }}>
                 Punto de partida
                 <div className="relative">
                   <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-cyan-500/80 group-focus-within:text-cyan-400" />
                   <select
-                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-8 text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 appearance-none"
-                    style={{ paddingLeft: '2.75rem' }} 
+                    className="h-12 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] text-sm text-slate-200 outline-none transition-all hover:border-cyan-500/50 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-500/20 appearance-none"
+                    style={{ paddingLeft: '3rem', paddingRight: '2rem' }}
                     value={originId}
                     onChange={(e) => {
                       setOriginId(e.target.value);
@@ -1232,13 +1236,13 @@ export function ModularReadOnlyMap() {
               </label>
 
               {/* Destino */}
-              <label className="flex flex-col gap-2 text-[13px] font-medium text-slate-300 group">
+              <label className="flex flex-col gap-3 text-[13px] font-medium text-slate-300 group" style={{ minWidth: '200px' }}>
                 Destino
                 <div className="relative">
                   <Flag size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500/80 group-focus-within:text-emerald-400" />
                   <select
-                    className="h-11 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] py-2 pr-8 text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 appearance-none"
-                    style={{ paddingLeft: '2.75rem' }} 
+                    className="h-12 w-full rounded-xl border border-slate-600/50 bg-[#0c1631] text-sm text-slate-200 outline-none transition-all hover:border-emerald-500/50 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 appearance-none"
+                    style={{ paddingLeft: '3rem', paddingRight: '2rem' }}
                     value={destinationId}
                     onChange={(e) => {
                       setDestinationId(e.target.value);
@@ -1261,18 +1265,18 @@ export function ModularReadOnlyMap() {
               </label>
 
               {/* Filtros Dropdown */}
-              <div className="relative flex flex-col gap-2">
+              <div className="relative flex flex-col gap-3">
                 <span className="text-[13px] font-medium text-slate-300">Vista del mapa</span>
                 <button
                   type="button"
-                  className="flex h-11 w-full items-center justify-between rounded-xl border border-slate-600/50 bg-[#0c1631] px-4 py-2 text-sm text-slate-200 hover:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
+                  className="flex h-12 w-full items-center justify-between rounded-xl border border-slate-600/50 bg-[#0c1631] px-5 text-sm text-slate-200 hover:border-cyan-500/50 focus:ring-2 focus:ring-cyan-500/20"
                   onClick={() => setLayersOpen(!layersOpen)}
                 >
                   <span className="flex items-center">
-                    <Layers size={16} className="text-slate-400" style={{ marginRight: '8px' }} />
+                    <Layers size={16} className="text-slate-400 mr-2" />
                     Capas activas
                   </span>
-                  <span className="text-xs font-bold text-cyan-400" style={{ marginLeft: '8px' }}>
+                  <span className="text-xs font-bold text-cyan-400 ml-2">
                     {Object.values(visibility).filter(Boolean).length}/4
                   </span>
                 </button>
@@ -1306,7 +1310,7 @@ export function ModularReadOnlyMap() {
               {/* Action Button */}
               <button
                 type="button"
-                className="h-11 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 disabled:shadow-none lg:min-w-[140px]"
+                className="h-12 w-full rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-8 text-sm font-bold text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-cyan-400 disabled:from-slate-700 disabled:to-slate-800 disabled:text-slate-500 disabled:shadow-none lg:min-w-[140px]"
                 disabled={!canRoute || routeLoading}
                 onClick={handleComputeRoute}
               >
@@ -1317,7 +1321,7 @@ export function ModularReadOnlyMap() {
             {routeError && <p className="text-xs font-medium text-rose-400">{routeError}</p>}
             
             {routePath.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4 mt-2">
                 <div className="flex flex-col gap-1">
                   <p className="text-xs font-bold text-emerald-400 uppercase tracking-wide">Ruta establecida</p>
                   <p className="text-sm text-slate-300">{originLabel} → {destinationLabel}</p>
