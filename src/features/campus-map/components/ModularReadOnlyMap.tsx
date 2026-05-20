@@ -1133,6 +1133,19 @@ export function ModularReadOnlyMap() {
 
           {/* Right Controls */}
           <div className="flex items-center gap-3">
+            
+            {avatarIsMoving && (
+              <button
+                type="button"
+                onClick={handleCancelTrip}
+                className="flex items-center gap-2 rounded-full border border-rose-500/40 bg-rose-950/40 px-3 py-1.5 transition-colors hover:bg-rose-900/60 hover:border-rose-400/60"
+                title="Detener avatar"
+              >
+                <div className="h-1.5 w-1.5 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(244,63,94,0.8)] animate-pulse" />
+                <span className="text-[11px] font-bold text-rose-300 uppercase tracking-wider">Detener</span>
+              </button>
+            )}
+
             <div
               className="hidden sm:flex items-center gap-2 rounded-full bg-slate-900/50 border border-slate-700/60 px-3 py-1.5"
               title={statusLabel}
@@ -1187,18 +1200,6 @@ export function ModularReadOnlyMap() {
           }}
         >
           <div className="px-6 py-6 sm:px-8 sm:py-7 flex flex-col space-y-6">
-            {avatarIsMoving && (
-              <div className="flex items-center justify-between rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-3">
-                <span className="text-xs font-medium text-rose-200">Avatar en movimiento...</span>
-                <button
-                  type="button"
-                  className="text-[11px] font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300"
-                  onClick={handleCancelTrip}
-                >
-                  Detener
-                </button>
-              </div>
-            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-5 lg:gap-6 items-end">
               
